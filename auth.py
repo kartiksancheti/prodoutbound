@@ -25,6 +25,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "12"))
 SESSION_COOKIE = "session"
+ADMIN_SESSION_COOKIE = "admin_session"
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() != "false"  # set false only for plain-http local dev
 
 if not JWT_SECRET:
@@ -75,9 +76,10 @@ def decode_access_token(token: str) -> dict:
         raise HTTPException(401, "Invalid session.")
 
 
-def set_session_cookie(response, token: str) -> None:
+def set_session_cookie(response, token: str, is_admin: bool = False) -> None:
+    cookie_name = ADMIN_SESSION_COOKIE if is_admin else SESSION_COOKIE
     response.set_cookie(
-        key=SESSION_COOKIE,
+        key=cookie_name,
         value=token,
         httponly=True,
         secure=COOKIE_SECURE,
@@ -87,8 +89,9 @@ def set_session_cookie(response, token: str) -> None:
     )
 
 
-def clear_session_cookie(response) -> None:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+def clear_session_cookie(response, is_admin: bool = False) -> None:
+    cookie_name = ADMIN_SESSION_COOKIE if is_admin else SESSION_COOKIE
+    response.delete_cookie(cookie_name, path="/")
 
 
 # ── Request-scoped identity ───────────────────────────────────────────────
@@ -105,7 +108,14 @@ class CurrentUser:
 
 
 def _extract_token(request: Request) -> Optional[str]:
-    token = request.cookies.get(SESSION_COOKIE)
+    # Admin API routes prefer the admin cookie; everything else prefers the tenant cookie.
+    # Both cookies are sent on every request (same path "/"), we just pick the right one
+    # based on which route is being hit, so both sessions coexist in one browser.
+    is_admin_route = request.url.path.startswith("/api/admin") or request.url.path == "/admin"
+    if is_admin_route:
+        token = request.cookies.get(ADMIN_SESSION_COOKIE) or request.cookies.get(SESSION_COOKIE)
+    else:
+        token = request.cookies.get(SESSION_COOKIE) or request.cookies.get(ADMIN_SESSION_COOKIE)
     if token:
         return token
     auth_header = request.headers.get("authorization", "")

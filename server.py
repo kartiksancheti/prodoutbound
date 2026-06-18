@@ -390,14 +390,16 @@ async def login(req: LoginRequest, request: Request, response: Response):
             raise HTTPException(403, "This account's organization is suspended.")
 
     token = create_access_token(user_row["id"], user_row.get("org_id"), user_row["role"])
-    set_session_cookie(response, token)
+    is_admin = user_row["role"] == "platform_admin"
+    set_session_cookie(response, token, is_admin=is_admin)
     await touch_last_login(user_row["id"])
     return {"ok": True, "role": user_row["role"], "org_name": org["name"] if org else None}
 
 
 @app.post("/api/auth/logout")
 async def logout(response: Response):
-    clear_session_cookie(response)
+    clear_session_cookie(response, is_admin=False)
+    clear_session_cookie(response, is_admin=True)
     return {"ok": True}
 
 
