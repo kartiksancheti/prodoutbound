@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OutboundAI — Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+    --border: #2e3250; --primary: #6366f1; --primary-dark: #4f46e5;
+    --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+    --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+    --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,.4);
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: flex; height: 100vh; overflow: hidden; }
+
+  #sidebar { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 0; }
+  .logo { padding: 0 20px 6px; font-size: 18px; font-weight: 700; color: var(--primary); }
+  .logo span { color: var(--warning); font-size: 11px; font-weight: 600; display: block; margin-top: 2px; letter-spacing: .5px; text-transform: uppercase; }
+  .admin-badge { margin: 0 20px 20px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--warning); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 20px; cursor: pointer; color: var(--text2); transition: all .15s; font-size: 13px; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(99,102,241,.15); color: var(--primary); border-right: 2px solid var(--primary); }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .nav-badge { margin-left: auto; background: var(--danger); color: #fff; border-radius: 10px; font-size: 10px; padding: 1px 6px; font-weight: 700; }
+  .nav-sep { height: 1px; background: var(--border); margin: 8px 20px; }
+
+  .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .login-overlay.hidden { display: none; }
+  .login-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; width: 340px; box-shadow: var(--shadow); }
+  .login-error { background: rgba(239,68,68,.12); color: var(--danger); border-radius: 6px; padding: 8px 12px; font-size: 12px; margin-bottom: 14px; }
+
+  #main { flex: 1; overflow-y: auto; padding: 28px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .card-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+  .card-value { font-size: 28px; font-weight: 700; color: var(--text); }
+  .card-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--surface2); text-align: left; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--text3); }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-green { background: rgba(34,197,94,.15); color: var(--success); }
+  .badge-red { background: rgba(239,68,68,.15); color: var(--danger); }
+  .badge-yellow { background: rgba(245,158,11,.15); color: var(--warning); }
+  .badge-blue { background: rgba(99,102,241,.15); color: var(--primary); }
+  .badge-gray { background: rgba(100,116,139,.15); color: var(--text3); }
+
+  .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+  .btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+  .btn-warning { background: var(--warning); color: #000; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  .page-actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .ml-auto { margin-left: auto; }
+  .empty { text-align: center; color: var(--text3); padding: 40px; font-size: 13px; }
+
+  #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 13px; min-width: 220px; animation: slideIn .2s ease; box-shadow: var(--shadow); }
+  .toast.ok { border-left: 3px solid var(--success); }
+  .toast.err { border-left: 3px solid var(--danger); }
+  @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 600px; max-width: 96vw; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow); }
+  .modal h3 { margin-bottom: 18px; font-size: 16px; }
+  .modal-footer { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-group label { font-size: 12px; color: var(--text2); }
+  input, select, textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px 12px; font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; width: 100%; }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Ticket card */
+  .ticket-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 12px; }
+  .ticket-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ticket-subject { font-weight: 600; font-size: 14px; flex: 1; }
+  .ticket-meta { font-size: 12px; color: var(--text3); margin-bottom: 8px; }
+  .ticket-message { font-size: 13px; color: var(--text2); line-height: 1.6; background: var(--surface2); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+  .ticket-admin-note { font-size: 12px; color: var(--warning); background: rgba(245,158,11,.08); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; border-left: 3px solid var(--warning); }
+  .ticket-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Tenant drill-down panel */
+  .tenant-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-top: 20px; }
+  .tenant-panel h3 { font-size: 15px; margin-bottom: 16px; }
+
+  /* Charts */
+  .charts { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .chart-box h3 { font-size: 13px; color: var(--text2); margin-bottom: 14px; font-weight: 500; }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .filter-bar select, .filter-bar input { width: auto; }
+</style>
+</head>
+<body>
+
+<div id="login-overlay" class="login-overlay">
+  <div class="login-box">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:18px;font-weight:700;color:var(--primary)">OutboundAI</div>
+      <div style="font-size:12px;color:var(--warning);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px">Platform Admin</div>
+    </div>
+    <form id="login-form" onsubmit="return handleLogin(event)">
+      <div class="form-group"><label>Email</label><input id="login-email" type="email" required></div>
+      <div class="form-group"><label>Password</label><input id="login-password" type="password" required></div>
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">Sign In as Admin</button>
+    </form>
+  </div>
+</div>
+
+<nav id="sidebar">
+  <div class="logo">OutboundAI <span>Admin Console</span></div>
+  <div class="admin-badge">⚡ Platform Admin</div>
+
+  <div class="nav-item active" onclick="nav('overview')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Overview
+  </div>
+  <div class="nav-item" onclick="nav('tenants')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Tenants
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-item" onclick="nav('users')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    Users
+  </div>
+  <div class="nav-item" onclick="nav('support')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Support Tickets
+    <span class="nav-badge" id="open-ticket-count" style="display:none">0</span>
+  </div>
+  <div class="nav-sep"></div>
+  <div class="nav-item" onclick="handleLogout()" style="margin-top:auto">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Log Out
+  </div>
+</nav>
+
+<main id="main">
+
+<!-- ── OVERVIEW ─────────────────────────────────────────────────── -->
+<section id="s-overview" class="section active">
+  <h2>Platform Overview</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Total Tenants</div>
+      <div class="card-value" id="ov-tenants">—</div>
+      <div class="card-sub" id="ov-active-tenants">— active</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Calls Today</div>
+      <div class="card-value" id="ov-calls-today" style="color:var(--primary)">—</div>
+      <div class="card-sub" id="ov-calls-total">— all time</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Open Tickets</div>
+      <div class="card-value" id="ov-open-tickets" style="color:var(--warning)">—</div>
+      <div class="card-sub">support requests</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Errors Today</div>
+      <div class="card-value" id="ov-errors" style="color:var(--danger)">—</div>
+      <div class="card-sub">across all tenants</div>
+    </div>
+  </div>
+
+  <h2 style="font-size:15px;margin-bottom:14px">Tenant Activity</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tenant</th>
+          <th>Status</th>
+          <th>Total Calls</th>
+          <th>Booked</th>
+          <th>Book Rate</th>
+          <th>Avg Duration</th>
+          <th>Users</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="overview-tenants-tbody">
+        <tr><td colspan="8" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── TENANTS ───────────────────────────────────────────────────── -->
+<section id="s-tenants" class="section">
+  <h2>Tenant Management</h2>
+  <div class="page-actions">
+    <button class="btn btn-primary" onclick="openNewTenantModal()">+ New Tenant</button>
+    <button class="btn btn-ghost" onclick="loadTenants()">Refresh</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Slug</th>
+          <th>Status</th>
+          <th>Outbound #</th>
+          <th>Daily Cap</th>
+          <th>Total Calls</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tenants-tbody">
+        <tr><td colspan="8" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Tenant drill-down -->
+  <div class="tenant-panel" id="tenant-drilldown" style="display:none">
+    <h3 id="drilldown-title">Recent Calls</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Phone</th><th>Lead</th><th>Outcome</th><th>Duration</th><th>Time</th><th>Notes</th></tr></thead>
+        <tbody id="drilldown-tbody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── SUPPORT TICKETS ───────────────────────────────────────────── -->
+<section id="s-support" class="section">
+  <h2>Support Tickets</h2>
+  <div class="filter-bar">
+    <select id="ticket-filter" onchange="loadTickets()">
+      <option value="">All tickets</option>
+      <option value="open">Open</option>
+      <option value="in_progress">In Progress</option>
+      <option value="resolved">Resolved</option>
+    </select>
+    <button class="btn btn-ghost ml-auto" onclick="loadTickets()">Refresh</button>
+  </div>
+  <div id="tickets-container">
+    <div class="empty">Loading…</div>
+  </div>
+</section>
+
+
+<!-- ── USERS ────────────────────────────────────────────────────── -->
+<section id="s-users" class="section">
+  <h2>Tenant Users</h2>
+  <div class="filter-bar">
+    <select id="users-org-filter" onchange="loadUsers()">
+      <option value="">Select a tenant…</option>
+    </select>
+    <button class="btn btn-ghost ml-auto" onclick="loadUsers()">Refresh</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+      <tbody id="users-tbody"><tr><td colspan="5" class="empty">Select a tenant above</td></tr></tbody>
+    </table>
+  </div>
+
+  <!-- Quota card -->
+  <div id="quota-card" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px">
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Today's Call Quota</div>
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="font-size:28px;font-weight:700" id="quota-used">—</div>
+      <div style="color:var(--text3)">/</div>
+      <div style="font-size:18px;color:var(--text2)" id="quota-cap">—</div>
+      <div style="flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden">
+        <div id="quota-bar" style="height:100%;background:var(--primary);border-radius:4px;transition:width .3s;width:0%"></div>
+      </div>
+      <div style="font-size:13px;color:var(--text2)" id="quota-pct">—</div>
+    </div>
+  </div>
+
+  <!-- Error logs -->
+  <h3 style="font-size:14px;margin-bottom:12px;color:var(--text2)" id="errors-title" style="display:none">Recent Errors</h3>
+  <div id="errors-container"></div>
+</section>
+
+</main>
+
+<!-- ── MODALS ──────────────────────────────────────────────────────── -->
+
+<!-- New tenant modal -->
+<div class="modal-backdrop" id="new-tenant-modal">
+  <div class="modal">
+    <h3>Add New Tenant</h3>
+    <div class="form-group"><label>Business Name *</label><input id="nt-name" placeholder="Apex Dental Clinic"></div>
+    <div class="form-group"><label>Slug * (URL-safe, e.g. apex-dental)</label><input id="nt-slug" placeholder="apex-dental"></div>
+    <div class="form-group"><label>Admin Email *</label><input id="nt-email" type="email" placeholder="owner@apexdental.com"></div>
+    <div class="form-group"><label>Password *</label><input id="nt-password" type="password" placeholder="min 8 characters"></div>
+    <div class="form-group"><label>Outbound Number (E.164)</label><input id="nt-outbound" placeholder="+918071582020"></div>
+    <div class="form-group"><label>Transfer Number (E.164)</label><input id="nt-transfer" placeholder="+918071582020"></div>
+    <div class="form-group"><label>Daily Call Cap</label><input id="nt-cap" type="number" value="500"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('new-tenant-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createTenant()">Create Tenant</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit tenant modal -->
+<div class="modal-backdrop" id="edit-tenant-modal">
+  <div class="modal">
+    <h3>Edit Tenant</h3>
+    <input type="hidden" id="et-id">
+    <div class="form-group"><label>Status</label>
+      <select id="et-status">
+        <option value="active">Active</option>
+        <option value="suspended">Suspended</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Outbound Number (E.164)</label><input id="et-outbound" placeholder="+918071582020"></div>
+    <div class="form-group"><label>Transfer Number (E.164)</label><input id="et-transfer" placeholder="+918071582020"></div>
+    <div class="form-group"><label>Daily Call Cap</label><input id="et-cap" type="number"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-tenant-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTenant()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Reset password modal -->
+<div class="modal-backdrop" id="reset-modal">
+  <div class="modal" style="width:400px">
+    <h3>Reset Password</h3>
+    <input type="hidden" id="reset-user-id">
+    <input type="hidden" id="reset-org-id">
+    <div class="form-group">
+      <label>New Password (min 8 chars)</label>
+      <input id="reset-password" type="password" placeholder="New password">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('reset-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="doResetPassword()">Reset Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- Resolve ticket modal -->
+<div class="modal-backdrop" id="resolve-modal">
+  <div class="modal" style="width:480px">
+    <h3>Update Ticket</h3>
+    <input type="hidden" id="rm-id">
+    <div class="form-group">
+      <label>Status</label>
+      <select id="rm-status">
+        <option value="open">Open</option>
+        <option value="in_progress">In Progress</option>
+        <option value="resolved">Resolved</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Admin Note (shown to tenant)</label>
+      <textarea id="rm-note" placeholder="We've investigated and fixed the issue…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('resolve-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTicketUpdate()">Update Ticket</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function nav(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  const loaders = {
+    'overview': loadOverview,
+    'users':    () => { populateOrgFilter(); loadUsers(); },
+    'tenants':  loadTenants,
+    'support':  loadTickets,
+  };
+  if (loaders[id]) loaders[id]();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, ok = true) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (ok ? 'ok' : 'err');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (r.status === 401) { showLogin(); throw new Error('Session expired'); }
+  if (!r.ok) { const t = await r.text(); throw new Error(t || r.statusText); }
+  return r.json();
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDur(sec) {
+  if (!sec) return '—';
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+
+function fmtDate(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function outcomeBadge(o) {
+  const map = { booked:'badge-green', not_interested:'badge-red', voicemail:'badge-yellow',
+    wrong_number:'badge-gray', no_answer:'badge-gray', callback_requested:'badge-blue' };
+  return `<span class="badge ${map[o]||'badge-gray'}">${esc(o||'—')}</span>`;
+}
+
+function priorityBadge(p) {
+  const map = { high:'badge-red', normal:'badge-yellow', low:'badge-green' };
+  return `<span class="badge ${map[p]||'badge-gray'}">${esc(p)}</span>`;
+}
+
+function statusBadge(s) {
+  const map = { open:'badge-red', in_progress:'badge-yellow', resolved:'badge-green', active:'badge-green', suspended:'badge-red' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s)}</span>`;
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function showLogin() { document.getElementById('login-overlay').classList.remove('hidden'); }
+function hideLogin() { document.getElementById('login-overlay').classList.add('hidden'); }
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || 'Login failed');
+    const data = await r.json();
+    if (data.role !== 'platform_admin') {
+      throw new Error('Access denied — platform admin account required.');
+    }
+    hideLogin();
+    loadOverview();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+  return false;
+}
+
+async function handleLogout() {
+  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+  showLogin();
+}
+
+async function bootstrap() {
+  try {
+    const r = await fetch('/api/auth/me');
+    if (!r.ok) { showLogin(); return; }
+    const info = await r.json();
+    if (info.role !== 'platform_admin') { showLogin(); return; }
+    hideLogin();
+    loadOverview();
+  } catch(e) { showLogin(); }
+}
+
+// ── OVERVIEW ──────────────────────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const [stats, tickets] = await Promise.all([
+      api('/api/admin/stats'),
+      api('/api/admin/support/tickets?status=open').catch(() => []),
+    ]);
+
+    document.getElementById('ov-tenants').textContent = stats.total_tenants;
+    document.getElementById('ov-active-tenants').textContent = `${stats.active_tenants} active`;
+    document.getElementById('ov-calls-today').textContent = stats.total_calls_today;
+    document.getElementById('ov-calls-total').textContent = `${stats.total_calls_all_time} all time`;
+    document.getElementById('ov-errors').textContent = stats.total_errors_today;
+
+    const openCount = tickets.length;
+    document.getElementById('ov-open-tickets').textContent = openCount;
+    const badge = document.getElementById('open-ticket-count');
+    if (openCount > 0) {
+      badge.textContent = openCount;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    const tbody = document.getElementById('overview-tenants-tbody');
+    if (!stats.tenants.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No tenants yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = stats.tenants.map(t => `
+      <tr>
+        <td><strong>${esc(t.name)}</strong><br><span style="color:var(--text3);font-size:11px">${esc(t.slug)}</span></td>
+        <td>${statusBadge(t.status)}</td>
+        <td>${t.total_calls}</td>
+        <td style="color:var(--success)">${t.booked}</td>
+        <td style="color:var(--primary)">${t.booking_rate}%</td>
+        <td>${fmtDur(t.avg_duration)}</td>
+        <td>${t.user_count}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="navAndDrilldown('${esc(t.id)}','${esc(t.name)}')">View Calls</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) { toast('Failed to load overview: ' + e.message, false); }
+}
+
+// ── TENANTS ───────────────────────────────────────────────────────────────────
+async function loadTenants() {
+  try {
+    const stats = await api('/api/admin/stats');
+    const tbody = document.getElementById('tenants-tbody');
+    if (!stats.tenants.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">No tenants yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = stats.tenants.map(t => `
+      <tr>
+        <td><strong>${esc(t.name)}</strong></td>
+        <td style="color:var(--text3)">${esc(t.slug)}</td>
+        <td>${statusBadge(t.status)}</td>
+        <td style="font-family:monospace;font-size:12px">${esc(t.outbound_number || '—')}</td>
+        <td>${t.max_calls_per_day}/day</td>
+        <td>${t.total_calls}</td>
+        <td style="color:var(--text3);font-size:12px">${fmtDate(t.created_at)}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="drilldown('${esc(t.id)}','${esc(t.name)}')">Calls</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
+          ${t.status === 'active'
+            ? `<button class="btn btn-danger btn-sm" onclick="toggleTenant('${esc(t.id)}','suspended')">Suspend</button>`
+            : `<button class="btn btn-success btn-sm" onclick="toggleTenant('${esc(t.id)}','active')">Activate</button>`}
+        </td>
+      </tr>
+    `).join('');
+  } catch(e) { toast('Failed to load tenants: ' + e.message, false); }
+}
+
+async function drilldown(orgId, name) {
+  const panel = document.getElementById('tenant-drilldown');
+  document.getElementById('drilldown-title').textContent = `Recent Calls — ${name}`;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth' });
+  const tbody = document.getElementById('drilldown-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  try {
+    const calls = await api(`/api/admin/tenants/${orgId}/calls?limit=50`);
+    if (!calls.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No calls yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = calls.map(c => `
+      <tr>
+        <td style="font-family:monospace;font-size:12px">${esc(c.phone_number)}</td>
+        <td>${esc(c.lead_name || '—')}</td>
+        <td>${outcomeBadge(c.outcome)}</td>
+        <td>${fmtDur(c.duration_seconds)}</td>
+        <td style="color:var(--text3);font-size:12px">${fmtDate(c.timestamp)}</td>
+        <td style="color:var(--text3);font-size:12px">${esc(c.notes || '—')}</td>
+      </tr>
+    `).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(e.message)}</td></tr>`; }
+}
+
+function openNewTenantModal() { openModal('new-tenant-modal'); }
+
+async function createTenant() {
+  const name     = document.getElementById('nt-name').value.trim();
+  const slug     = document.getElementById('nt-slug').value.trim();
+  const email    = document.getElementById('nt-email').value.trim();
+  const password = document.getElementById('nt-password').value;
+  const outbound = document.getElementById('nt-outbound').value.trim();
+  const transfer = document.getElementById('nt-transfer').value.trim();
+  const cap      = parseInt(document.getElementById('nt-cap').value) || 500;
+
+  if (!name || !slug || !email || !password) { toast('Name, slug, email and password are required', false); return; }
+  try {
+    const org = await api('/api/admin/organizations', {
+      method: 'POST',
+      body: JSON.stringify({ name, slug, outbound_number: outbound || null, transfer_number: transfer || null, max_calls_per_day: cap }),
+    });
+    await api('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, org_id: org.id, role: 'owner' }),
+    });
+    toast(`Tenant "${name}" created`);
+    closeModal('new-tenant-modal');
+    loadTenants();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+function openEditTenant(id, status, outbound, transfer, cap) {
+  document.getElementById('et-id').value = id;
+  document.getElementById('et-status').value = status;
+  document.getElementById('et-outbound').value = outbound;
+  document.getElementById('et-transfer').value = transfer;
+  document.getElementById('et-cap').value = cap;
+  openModal('edit-tenant-modal');
+}
+
+async function saveTenant() {
+  const id = document.getElementById('et-id').value;
+  try {
+    await api(`/api/admin/organizations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status:          document.getElementById('et-status').value,
+        outbound_number: document.getElementById('et-outbound').value.trim() || null,
+        transfer_number: document.getElementById('et-transfer').value.trim() || null,
+        max_calls_per_day: parseInt(document.getElementById('et-cap').value) || 500,
+      }),
+    });
+    toast('Tenant updated');
+    closeModal('edit-tenant-modal');
+    loadTenants();
+    loadOverview();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+async function toggleTenant(id, newStatus) {
+  const label = newStatus === 'suspended' ? 'suspend' : 'activate';
+  if (!confirm(`Are you sure you want to ${label} this tenant?`)) return;
+  try {
+    await api(`/api/admin/organizations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus }),
+    });
+    toast(`Tenant ${label}d`);
+    loadTenants();
+    loadOverview();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+// ── SUPPORT TICKETS ───────────────────────────────────────────────────────────
+async function loadTickets() {
+  const filter = document.getElementById('ticket-filter').value;
+  const container = document.getElementById('tickets-container');
+  container.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    let url = '/api/admin/support/tickets';
+    if (filter) url += `?status=${filter}`;
+    const tickets = await api(url);
+
+    // Update badge
+    const openTickets = tickets.filter(t => t.status === 'open');
+    const badge = document.getElementById('open-ticket-count');
+    if (openTickets.length > 0) {
+      badge.textContent = openTickets.length;
+      badge.style.display = 'inline';
+    } else {
+      badge.style.display = 'none';
+    }
+
+    if (!tickets.length) {
+      container.innerHTML = '<div class="empty">No tickets found</div>';
+      return;
+    }
+
+    container.innerHTML = tickets.map(t => `
+      <div class="ticket-card">
+        <div class="ticket-header">
+          <div class="ticket-subject">${esc(t.subject)}</div>
+          ${priorityBadge(t.priority)}
+          ${statusBadge(t.status)}
+        </div>
+        <div class="ticket-meta">
+          From <strong>${esc(t.org_name)}</strong> · ${fmtDate(t.created_at)}
+          ${t.updated_at !== t.created_at ? ` · Updated ${fmtDate(t.updated_at)}` : ''}
+        </div>
+        <div class="ticket-message">${esc(t.message)}</div>
+        ${t.admin_note ? `<div class="ticket-admin-note">📝 Admin note: ${esc(t.admin_note)}</div>` : ''}
+        <div class="ticket-actions">
+          ${t.status !== 'resolved' ? `
+            <button class="btn btn-success btn-sm" onclick="quickResolve('${t.id}')">✓ Mark Resolved</button>
+            <button class="btn btn-warning btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Update + Note</button>
+          ` : `
+            <button class="btn btn-ghost btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Reopen / Edit</button>
+          `}
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { container.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+}
+
+async function quickResolve(id) {
+  try {
+    await api(`/api/admin/support/tickets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'resolved' }),
+    });
+    toast('Ticket resolved');
+    loadTickets();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+function openResolveModal(id, status) {
+  document.getElementById('rm-id').value = id;
+  document.getElementById('rm-status').value = status;
+  document.getElementById('rm-note').value = '';
+  openModal('resolve-modal');
+}
+
+async function saveTicketUpdate() {
+  const id = document.getElementById('rm-id').value;
+  try {
+    await api(`/api/admin/support/tickets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status:     document.getElementById('rm-status').value,
+        admin_note: document.getElementById('rm-note').value.trim() || null,
+      }),
+    });
+    toast('Ticket updated');
+    closeModal('resolve-modal');
+    loadTickets();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-backdrop').forEach(b => {
+  b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
+});
+
+
+function navAndDrilldown(id, name) {
+  // Switch to tenants tab first, then drill down
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-tenants').classList.add('active');
+  loadTenants().then(() => drilldown(id, name));
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+bootstrap();
+</script>
+</body>
+</html>

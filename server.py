@@ -322,6 +322,20 @@ class OrganizationUpdate(BaseModel):
     max_calls_per_day: Optional[int] = None
 
 
+
+class SupportTicketCreate(BaseModel):
+    subject: str
+    message: str
+    priority: str = "normal"
+
+
+class PasswordResetRequest(BaseModel):
+    password: str
+
+class SupportTicketUpdate(BaseModel):
+    status: str
+    admin_note: Optional[str] = None
+
 class AdminUserCreate(BaseModel):
     email: str
     password: str
@@ -330,6 +344,17 @@ class AdminUserCreate(BaseModel):
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin():
+    """Platform admin dashboard — served at /admin"""
+    import os
+    path = os.path.join(os.path.dirname(__file__), "ui", "admin.html")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Admin UI not found</h1>", status_code=404)
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
@@ -440,6 +465,278 @@ async def admin_create_user(req: AdminUserCreate, user: CurrentUser = Depends(re
         raise HTTPException(400, str(exc))
     uid = await create_user(req.email, pw_hash, req.org_id, req.role)
     return {"id": uid}
+
+
+# ── Admin: platform-wide stats ────────────────────────────────────────────────
+
+@app.get("/api/admin/stats")
+async def admin_stats(user: CurrentUser = Depends(require_platform_admin)):
+    """Platform-wide summary for the admin dashboard."""
+    from db import _sdb
+    db = _sdb()
+
+    orgs   = db.table("organizations").select("id,name,slug,status,max_calls_per_day,created_at").execute()
+    users  = db.table("users").select("id,org_id,role,last_login_at").execute()
+    calls  = db.table("call_logs").select("id,org_id,outcome,duration_seconds,timestamp").execute()
+    errors = db.table("error_logs").select("id,org_id,level,timestamp").execute()
+
+    # Per-org call counts
+    from collections import defaultdict
+    org_calls = defaultdict(int)
+    org_booked = defaultdict(int)
+    org_duration = defaultdict(list)
+    for c in calls.data:
+        org_calls[c["org_id"]] += 1
+        if c.get("outcome") == "booked":
+            org_booked[c["org_id"]] += 1
+        if c.get("duration_seconds"):
+            org_duration[c["org_id"]].append(c["duration_seconds"])
+
+    # Today's totals
+    from datetime import date
+    today = date.today().isoformat()
+    today_calls = [c for c in calls.data if (c.get("timestamp") or "").startswith(today)]
+
+    tenants = []
+    for org in orgs.data:
+        oid = org["id"]
+        org_user_count = sum(1 for u in users.data if u["org_id"] == oid)
+        avg_dur = round(sum(org_duration[oid]) / len(org_duration[oid])) if org_duration[oid] else 0
+        tenants.append({
+            **org,
+            "total_calls": org_calls[oid],
+            "booked": org_booked[oid],
+            "booking_rate": round(org_booked[oid] / org_calls[oid] * 100) if org_calls[oid] else 0,
+            "avg_duration": avg_dur,
+            "user_count": org_user_count,
+        })
+
+    return {
+        "total_tenants": len(orgs.data),
+        "active_tenants": sum(1 for o in orgs.data if o["status"] == "active"),
+        "total_calls_all_time": len(calls.data),
+        "total_calls_today": len(today_calls),
+        "total_errors_today": sum(1 for e in errors.data if (e.get("timestamp") or "").startswith(today)),
+        "tenants": tenants,
+    }
+
+
+@app.get("/api/admin/tenants/{org_id}/calls")
+async def admin_tenant_calls(org_id: str, limit: int = 50, user: CurrentUser = Depends(require_platform_admin)):
+    """Drill-down: recent calls for a specific tenant."""
+    from db import _sdb
+    db = _sdb()
+    r = db.table("call_logs").select("*").eq("org_id", org_id)\
+        .order("timestamp", desc=True).limit(limit).execute()
+    return r.data
+
+
+# ── Support tickets ───────────────────────────────────────────────────────────
+
+@app.get("/api/support/tickets")
+async def list_my_tickets(user: CurrentUser = Depends(require_org_user)):
+    """Tenant: list their own tickets."""
+    from db import _sdb
+    db = _sdb()
+    r = db.table("support_tickets").select("*")\
+        .eq("org_id", user.org_id).order("created_at", desc=True).execute()
+    return r.data
+
+
+@app.post("/api/support/tickets")
+async def create_ticket(req: SupportTicketCreate, user: CurrentUser = Depends(require_org_user)):
+    """Tenant: raise a support ticket."""
+    import httpx, os
+    from db import _sdb, get_organization
+    db = _sdb()
+
+    org = await get_organization(user.org_id)
+    org_name = org["name"] if org else "Unknown"
+
+    ticket_id = str(uuid.uuid4())
+    db.table("support_tickets").insert({
+        "id": ticket_id,
+        "org_id": user.org_id,
+        "org_name": org_name,
+        "subject": req.subject,
+        "message": req.message,
+        "priority": req.priority,
+        "status": "open",
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+    }).execute()
+
+    # ── Slack notification ────────────────────────────────────────────────────
+    slack_url = os.getenv("SLACK_WEBHOOK_URL", "")
+    if slack_url:
+        priority_emoji = {"high": "🔴", "normal": "🟡", "low": "🟢"}.get(req.priority, "🟡")
+        payload = {
+            "text": f"{priority_emoji} *New Support Ticket* from *{org_name}*",
+            "blocks": [
+                {"type": "header", "text": {"type": "plain_text", "text": f"{priority_emoji} Support Ticket — {org_name}"}},
+                {"type": "section", "fields": [
+                    {"type": "mrkdwn", "text": f"*Subject:*\n{req.subject}"},
+                    {"type": "mrkdwn", "text": f"*Priority:*\n{req.priority.capitalize()}"},
+                ]},
+                {"type": "section", "text": {"type": "mrkdwn", "text": f"*Message:*\n{req.message}"}},
+                {"type": "section", "text": {"type": "mrkdwn", "text": f"<https://aivoice.nxtautomation.online/admin|Open Admin Dashboard>"}},
+            ]
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(slack_url, json=payload, timeout=5)
+        except Exception as e:
+            logger.warning("Slack notification failed: %s", e)
+
+    # ── Email notification (via simple SMTP or just log for now) ─────────────
+    # Add SMTP config to .env: ALERT_EMAIL_TO, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
+    alert_email = os.getenv("ALERT_EMAIL_TO", "")
+    smtp_host   = os.getenv("SMTP_HOST", "")
+    if alert_email and smtp_host:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(
+                f"New support ticket from {org_name}\n\n"
+                f"Subject: {req.subject}\nPriority: {req.priority}\n\n{req.message}\n\n"
+                f"Manage at: https://aivoice.nxtautomation.online/admin"
+            )
+            msg["Subject"] = f"[OutboundAI] Support Ticket — {org_name}: {req.subject}"
+            msg["From"]    = os.getenv("SMTP_USER", alert_email)
+            msg["To"]      = alert_email
+            with smtplib.SMTP_SSL(smtp_host, int(os.getenv("SMTP_PORT", "465"))) as s:
+                s.login(os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASS", ""))
+                s.send_message(msg)
+        except Exception as e:
+            logger.warning("Email notification failed: %s", e)
+
+    return {"id": ticket_id, "status": "open"}
+
+
+@app.get("/api/admin/support/tickets")
+async def admin_list_tickets(status: Optional[str] = None, user: CurrentUser = Depends(require_platform_admin)):
+    """Admin: list all tickets, optionally filtered by status."""
+    from db import _sdb
+    db = _sdb()
+    q = db.table("support_tickets").select("*").order("created_at", desc=True)
+    if status:
+        q = q.eq("status", status)
+    r = q.execute()
+    return r.data
+
+
+@app.patch("/api/admin/support/tickets/{ticket_id}")
+async def admin_update_ticket(ticket_id: str, req: SupportTicketUpdate, user: CurrentUser = Depends(require_platform_admin)):
+    """Admin: update ticket status / add note."""
+    from db import _sdb
+    db = _sdb()
+    updates = {
+        "status": req.status,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    if req.admin_note is not None:
+        updates["admin_note"] = req.admin_note
+    db.table("support_tickets").update(updates).eq("id", ticket_id).execute()
+    return {"updated": True}
+
+
+
+
+# ── Admin: tenant users ───────────────────────────────────────────────────────
+
+@app.get("/api/admin/tenants/{org_id}/users")
+async def admin_tenant_users(org_id: str, user: CurrentUser = Depends(require_platform_admin)):
+    from db import list_org_users
+    return await list_org_users(org_id)
+
+
+@app.post("/api/admin/tenants/{org_id}/users/{user_id}/reset-password")
+async def admin_reset_password(org_id: str, user_id: str, req: PasswordResetRequest, user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    new_password = req.password
+    if not new_password or len(new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    pw_hash = hash_password(new_password)
+    db = _sdb()
+    db.table("users").update({"password_hash": pw_hash}).eq("id", user_id).eq("org_id", org_id).execute()
+    return {"reset": True}
+
+
+@app.post("/api/admin/tenants/{org_id}/users/{user_id}/toggle")
+async def admin_toggle_user(org_id: str, user_id: str, user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    db = _sdb()
+    u = db.table("users").select("is_active").eq("id", user_id).eq("org_id", org_id).execute()
+    if not u.data:
+        raise HTTPException(404, "User not found")
+    new_status = not u.data[0]["is_active"]
+    db.table("users").update({"is_active": new_status}).eq("id", user_id).execute()
+    return {"is_active": new_status}
+
+
+# ── Admin: tenant quota usage today ──────────────────────────────────────────
+
+@app.get("/api/admin/tenants/{org_id}/quota")
+async def admin_tenant_quota(org_id: str, user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb, get_organization
+    from datetime import date
+    db = _sdb()
+    org = await get_organization(org_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    today = date.today().isoformat()
+    r = db.table("org_call_counters").select("call_count").eq("org_id", org_id).eq("date", today).execute()
+    used = r.data[0]["call_count"] if r.data else 0
+    return {"used": used, "cap": org["max_calls_per_day"], "remaining": max(0, org["max_calls_per_day"] - used)}
+
+
+# ── Admin: tenant error logs ──────────────────────────────────────────────────
+
+@app.get("/api/admin/tenants/{org_id}/errors")
+async def admin_tenant_errors(org_id: str, limit: int = 50, user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    db = _sdb()
+    r = db.table("error_logs").select("*").eq("org_id", org_id).order("timestamp", desc=True).limit(limit).execute()
+    return r.data
+
+
+# ── Tenant: quota usage today ─────────────────────────────────────────────────
+
+@app.get("/api/quota")
+async def get_my_quota(user: CurrentUser = Depends(require_org_user)):
+    from db import _sdb, get_organization
+    from datetime import date
+    db = _sdb()
+    org = await get_organization(user.org_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    today = date.today().isoformat()
+    r = db.table("org_call_counters").select("call_count").eq("org_id", user.org_id).eq("date", today).execute()
+    used = r.data[0]["call_count"] if r.data else 0
+    cap  = org["max_calls_per_day"]
+    return {"used": used, "cap": cap, "remaining": max(0, cap - used), "percent": round(used / cap * 100) if cap else 0}
+
+
+# ── Tenant: export call logs as CSV ──────────────────────────────────────────
+
+@app.get("/api/calls/export")
+async def export_calls_csv(user: CurrentUser = Depends(require_org_user)):
+    from db import _sdb
+    from fastapi.responses import StreamingResponse
+    import csv as _csv, io as _io
+    db = _sdb()
+    r = db.table("call_logs").select("*").eq("org_id", user.org_id).order("timestamp", desc=True).limit(5000).execute()
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=["timestamp","phone_number","lead_name","outcome","duration_seconds","notes","recording_url"])
+    writer.writeheader()
+    for row in r.data:
+        writer.writerow({k: row.get(k, "") for k in writer.fieldnames})
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=call_logs.csv"}
+    )
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
