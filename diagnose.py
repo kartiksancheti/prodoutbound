@@ -143,7 +143,7 @@ async def check_server(client: httpx.AsyncClient, authed: bool):
             record("FASTAPI", PASS, "Reachable; authenticated checks skipped (no login creds)")
             return PASS
 
-        r = await client.get(f"{base}/api/stats", follow_redirects=True)
+        r = await client.get(f"{base}/api/health", follow_redirects=True)
         if r.status_code == 200:
             data = r.json()
             ok(f"GET /api/stats → 200  (total_calls={data.get('total_calls',0)})")

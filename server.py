@@ -7,6 +7,8 @@ import os
 import random
 import re
 import uuid
+import time as _time
+_START_TIME = _time.time()
 from datetime import datetime
 from typing import Optional
 
@@ -386,6 +388,19 @@ async def me(user: CurrentUser = Depends(get_current_user)):
 
 
 # ── Platform admin: tenant management ──────────────────────────────────────
+
+
+@app.get("/api/health")
+async def health():
+    uptime = int(_time.time() - _START_TIME)
+    scheduler_ok = scheduler.running
+    return {
+        "status": "ok" if scheduler_ok else "degraded",
+        "version": "2.0.0",
+        "uptime": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
+        "scheduler": "running" if scheduler_ok else "stopped",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
 
 @app.get("/api/admin/organizations")
 async def admin_list_orgs(user: CurrentUser = Depends(require_platform_admin)):
