@@ -1096,7 +1096,6 @@ async function saveSettings() {
   } catch(e) { toast('Save failed: ' + e.message, false); }
 }
 
-}
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 function openModal(id) { document.getElementById(id).classList.add('open'); }
@@ -1160,7 +1159,7 @@ async function submitTicket() {
       method: 'POST',
       body: JSON.stringify({ subject, message, priority }),
     });
-    toast('Ticket submitted — we'll be in touch soon');
+    toast('Ticket submitted — we\'ll be in touch soon');
     document.getElementById('sup-subject').value = '';
     document.getElementById('sup-message').value = '';
     document.getElementById('sup-priority').value = 'normal';
