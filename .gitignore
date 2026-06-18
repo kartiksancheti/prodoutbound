@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.pm2/
+*.egg-info/
+.local/
+.cache/
+agent_calls.log
+.bash_history
+.bash_logout
+.bashrc
+.profile
+.gitconfig
+files.zip
