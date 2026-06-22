@@ -149,6 +149,8 @@ def _build_session(tools: list, system_prompt: str) -> AgentSession:
                 ),
             )
             kw["session_resumption"] = _gt.SessionResumptionConfig(transparent=True)
+            kw["proactivity"] = True  # speak first without waiting for user audio
+            kw["api_version"] = "v1alpha"  # required for proactivity to work
             kw["context_window_compression"] = _gt.ContextWindowCompressionConfig(
                 trigger_tokens=25600,
                 sliding_window=_gt.SlidingWindow(target_tokens=12800),
@@ -290,6 +292,16 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             room_input_options=RoomInputOptions(noise_cancellation=_get_nc()),
         )
 
+
+    # Trigger Priya to speak first using generate_reply (works in livekit-agents 1.6.2)
+    try:
+        await session.generate_reply(
+            instructions="Say this immediately: 'Hi, am I speaking with " + lead_name + "?' Do not wait."
+        )
+        logger.info("✅ generate_reply triggered — Priya will speak first")
+    except Exception as e:
+        logger.warning("generate_reply failed: %s", e)
+
     logger.info("✅ Session started — ready to dial")
 
     # ── Dial out ──────────────────────────────────────────────────────────────
@@ -370,7 +382,32 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                 # FIX 1: Minimal buffer — session is already warmed, agent speaks fast
                 await asyncio.sleep(0.1)
                 logger.info("🗣  Call answered — Gemini Live is active for %s", phone_number)
-                logger.info("🗣  Gemini Live will speak first per system prompt")
+                # Push silent audio to trigger Gemini to speak first.
+                # gemini-3.1-flash-live-preview won't speak unprompted — feeding it
+                # silence makes it detect end-of-speech and respond with the greeting.
+                try:
+                    from livekit import rtc as _rtc
+                    import numpy as np
+                    realtime_model = session._llm
+                    for rs in list(realtime_model._sessions):
+                        # 1 second of silence at 16kHz mono (Gemini input format)
+                        silent_data = bytes(16000 * 2)  # 16000 samples * 2 bytes each
+                        silent_frame = _rtc.AudioFrame(
+                            data=silent_data,
+                            sample_rate=16000,
+                            num_channels=1,
+                            samples_per_channel=16000,
+                        )
+                        # Send "hello" as realtime text input — mimics user speaking
+                        # This triggers Gemini exactly like when user says hello
+                        from google.genai import types as _gt
+                        rs._send_client_event(
+                            _gt.LiveClientRealtimeInput(text="hello")
+                        )
+                        logger.info("✅ Sent hello text to trigger Priya greeting")
+                        break
+                except Exception as e:
+                    logger.warning("Silent audio push failed: %s", e)
             except asyncio.TimeoutError:
                 logger.warning("⏱  No answer after 45s: %s", phone_number)
                 await _log("warning", f"No answer: {phone_number}")
