@@ -293,14 +293,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
         )
 
 
-    # Trigger Priya to speak first using generate_reply (works in livekit-agents 1.6.2)
-    try:
-        await session.generate_reply(
-            instructions="Say this immediately: 'Hi, am I speaking with " + lead_name + "?' Do not wait."
-        )
-        logger.info("✅ generate_reply triggered — Priya will speak first")
-    except Exception as e:
-        logger.warning("generate_reply failed: %s", e)
+    # Priya speaks first via silent audio + hello text sent after call answer
 
     logger.info("✅ Session started — ready to dial")
 
