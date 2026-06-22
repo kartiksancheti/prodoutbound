@@ -13,8 +13,8 @@ module.exports = {
     },
     {
       name: "outbound-agent",
-      script: "python3",
-      args: "agent.py start",
+      script: "/home/prodoutbound/start_agent.sh",
+      args: "",
       cwd: "/home/prodoutbound",
       interpreter: "none",
       env_file: "/home/prodoutbound/.env",
