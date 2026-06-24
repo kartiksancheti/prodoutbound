@@ -558,6 +558,21 @@ function nav(id) {
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
+function playRec(btn, encodedUrl) {
+  document.querySelectorAll("audio.rec-player").forEach(a => { a.pause(); a.remove(); });
+  document.querySelectorAll("[data-playing='1']").forEach(b => { b.textContent = "▶ Play"; b.removeAttribute("data-playing"); });
+  const audio = document.createElement("audio");
+  audio.className = "rec-player";
+  audio.src = "/api/recording/proxy?url=" + encodedUrl;
+  audio.style.cssText = "position:fixed;bottom:16px;right:16px;width:320px;z-index:9999;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.5);background:#1a1d27";
+  audio.controls = true;
+  audio.autoplay = true;
+  document.body.appendChild(audio);
+  btn.textContent = "⏹ Stop";
+  btn.setAttribute("data-playing", "1");
+  audio.onended = () => { audio.remove(); btn.textContent = "▶ Play"; btn.removeAttribute("data-playing"); };
+}
+
 function toast(msg, ok = true) {
   const el = document.createElement('div');
   el.className = 'toast ' + (ok ? 'ok' : 'err');
@@ -791,7 +806,7 @@ async function loadCallLogs() {
         <td>
           <input class="note-input" data-id="${r.id}" value="${esc(r.notes || '')}" style="width:140px" onblur="saveNote(this)" placeholder="Add note…">
         </td>
-        <td>${r.recording_url ? `<a href="${esc(r.recording_url)}" target="_blank" style="color:var(--primary)">▶ Play</a>` : '—'}</td>
+        <td>${r.recording_url ? `<button onclick="playRec(this, '${encodeURIComponent(r.recording_url)}')" style="background:var(--primary);border:none;border-radius:6px;color:#fff;padding:4px 10px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px">▶ Play</button><audio id="rec-audio" style="display:none"></audio>` : '—'}</td>
       </tr>`).join('') : '<tr><td colspan="7" class="empty">No call logs</td></tr>';
   } catch(e) { toast('Load failed: ' + e.message, false); }
 }
