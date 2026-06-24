@@ -7,6 +7,7 @@ import ssl
 import certifi
 from typing import Optional
 
+import aiohttp
 from dotenv import load_dotenv
 
 _orig_ssl = ssl.create_default_context
@@ -26,20 +27,22 @@ from tools import AppointmentTools
 
 load_dotenv(override=False)
 
-# ── FIX 4: File-based logging so PM2 captures everything ─────────────────────
+# ── File-based logging so PM2 captures everything ────────────────────────────
 _LOG_FILE = os.path.join(os.path.dirname(__file__), "agent_calls.log")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-    handlers=[
-        logging.StreamHandler(),                          # stdout (PM2)
-        logging.handlers.RotatingFileHandler(            # file (always works)
-            _LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
-        ),
-    ],
-)
+# Single handler — PM2 captures stdout, file is backup
+_root = logging.getLogger()
+_root.setLevel(logging.INFO)
+_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+# Clear any existing handlers to prevent duplicates
+_root.handlers.clear()
+_sh = logging.StreamHandler()
+_sh.setFormatter(_fmt)
+_fh = logging.handlers.RotatingFileHandler(_LOG_FILE, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8")
+_fh.setFormatter(_fmt)
+_root.addHandler(_sh)
+_root.addHandler(_fh)
+_root.propagate = False
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("livekit.agents").setLevel(logging.WARNING)
@@ -48,7 +51,7 @@ logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 logger = logging.getLogger("agent")
 
-# ── NC model cached at module level — loaded ONCE when worker starts ──────────
+# ── NC model cached at module level ──────────────────────────────────────────
 _NC_MODEL: Optional[noise_cancellation.BVCTelephony] = None
 
 def _get_nc() -> noise_cancellation.BVCTelephony:
@@ -111,7 +114,6 @@ try:
 except ImportError:
     logger.warning("livekit-plugins-google not installed")
 
-# FIX 5: Deepgram only needed for pipeline fallback — not for native audio model
 _deepgram_stt = None
 try:
     from livekit.plugins import deepgram as _dg
@@ -123,7 +125,6 @@ except ImportError:
 def _build_session(tools: list, system_prompt: str) -> AgentSession:
     gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-live-001")
 
-    # Auto-correct deprecated model names
     if gemini_model in "gemini-2.0-flash":
         logger.warning("⚠️  Model '%s' is deprecated — switching to gemini-2.0-flash-live-001", gemini_model)
         gemini_model = "gemini-2.0-flash-live-001"
@@ -137,20 +138,18 @@ def _build_session(tools: list, system_prompt: str) -> AgentSession:
 
         kw: dict = dict(model=gemini_model, voice=gemini_voice, instructions=system_prompt)
 
-        # FIX 2: Proper VAD config to eliminate mid-call silence pauses
-        # These settings tell Gemini to respond faster after the user stops speaking
         try:
             from google.genai import types as _gt
             kw["realtime_input_config"] = _gt.RealtimeInputConfig(
                 automatic_activity_detection=_gt.AutomaticActivityDetection(
                     end_of_speech_sensitivity=_gt.EndSensitivity.END_SENSITIVITY_HIGH,
-                    silence_duration_ms=800,      # respond after 800ms silence (was default ~2000ms)
+                    silence_duration_ms=800,
                     prefix_padding_ms=100,
                 ),
             )
             kw["session_resumption"] = _gt.SessionResumptionConfig(transparent=True)
-            kw["proactivity"] = True  # speak first without waiting for user audio
-            kw["api_version"] = "v1alpha"  # required for proactivity to work
+            kw["proactivity"] = True
+            kw["api_version"] = "v1alpha"
             kw["context_window_compression"] = _gt.ContextWindowCompressionConfig(
                 trigger_tokens=25600,
                 sliding_window=_gt.SlidingWindow(target_tokens=12800),
@@ -161,8 +160,6 @@ def _build_session(tools: list, system_prompt: str) -> AgentSession:
 
         return AgentSession(llm=RealtimeClass(**kw), tools=tools)
 
-    # Pipeline fallback (only if realtime not available)
-    # FIX 5: Native audio model does NOT need Deepgram — only pipeline mode does
     if _google_llm is None:
         raise RuntimeError("No Google AI backend available.")
 
@@ -173,8 +170,6 @@ def _build_session(tools: list, system_prompt: str) -> AgentSession:
     return AgentSession(stt=stt, llm=_google_llm(model=gemini_model), tts=tts, vad=vad, tools=tools)
 
 
-# FIX 1: Proper prewarm — actually establishes the Gemini WS connection
-# so first call has zero handshake delay
 def _prewarm(proc: agents.JobProcess) -> None:
     logger.info("🔥 Prewarming Gemini connection...")
     try:
@@ -182,12 +177,220 @@ def _prewarm(proc: agents.JobProcess) -> None:
         dummy_prompt = DEFAULT_SYSTEM_PROMPT.format(
             lead_name="there", business_name="our company", service_type="our service"
         )
-        # Store on proc so entrypoint can reuse it
         proc.userdata["warm_session"] = _build_session([], dummy_prompt)
         logger.info("✅ Gemini WS pre-warmed successfully")
     except Exception as e:
         logger.warning("Pre-warm failed (non-fatal): %s", e)
         proc.userdata["warm_session"] = None
+
+
+# ── FIX: Silence watchdog — force disconnect after N seconds of no audio ──────
+SILENCE_TIMEOUT_SEC = 45
+
+async def _silence_watchdog(sip_hungup: asyncio.Event, ctx: agents.JobContext,
+                             tool_ctx, phone_number: str) -> None:
+    """
+    Monitors silence by polling a shared timestamp updated by audio frame events.
+    Uses a simple time-based check every 2s instead of async track subscription
+    to avoid livekit SDK version compatibility issues.
+    """
+    logger.info("🔇 Silence watchdog started — %ds timeout", SILENCE_TIMEOUT_SEC)
+
+    # Use a mutable container so the callback can update it
+    state = {"last_audio_time": asyncio.get_event_loop().time(), "audio_seen": False}
+
+    from livekit import rtc
+
+    def _on_track_subscribed(track, publication, participant):
+        if not hasattr(track, 'kind') or track.kind != rtc.TrackKind.KIND_AUDIO:
+            return
+        logger.info("🔇 Watchdog subscribed to audio track: %s", participant.identity)
+
+        async def _consume():
+            try:
+                stream = rtc.AudioStream(track=track)
+                async for ev in stream:
+                    if sip_hungup.is_set():
+                        break
+                    state["last_audio_time"] = asyncio.get_event_loop().time()
+                    state["audio_seen"] = True
+            except Exception as e:
+                logger.warning("🔇 Audio stream error: %s", e)
+
+        asyncio.ensure_future(_consume())
+
+    # Also check existing tracks already subscribed before watchdog started
+    for participant in ctx.room.remote_participants.values():
+        for pub in participant.track_publications.values():
+            if pub.track and hasattr(pub.track, 'kind') and pub.track.kind == rtc.TrackKind.KIND_AUDIO:
+                logger.info("🔇 Watchdog found existing audio track: %s", participant.identity)
+
+                async def _consume_existing(t=pub.track):
+                    try:
+                        stream = rtc.AudioStream(track=t)
+                        async for ev in stream:
+                            if sip_hungup.is_set():
+                                break
+                            state["last_audio_time"] = asyncio.get_event_loop().time()
+                            state["audio_seen"] = True
+                    except Exception as e:
+                        logger.warning("🔇 Existing audio stream error: %s", e)
+
+                asyncio.ensure_future(_consume_existing())
+
+    ctx.room.on("track_subscribed", _on_track_subscribed)
+
+    # Wait up to 20s for first audio (ring + answer delay)
+    for _ in range(20):
+        if sip_hungup.is_set():
+            return
+        await asyncio.sleep(1.0)
+        if state["audio_seen"]:
+            break
+    else:
+        logger.warning("🔇 No audio ever received after 20s — force-ending call")
+        await _log("warning", "Force-ended: no audio received", f"phone={phone_number}")
+        sip_hungup.set()
+        try:
+            await tool_ctx.end_call(outcome="no_answer", reason="no audio received")
+        except Exception:
+            pass
+        try:
+            await ctx.room.disconnect()
+        except Exception:
+            pass
+        return
+
+    logger.info("🔇 Audio confirmed — watching for %ds silence", SILENCE_TIMEOUT_SEC)
+
+    # Main watchdog loop — check every 2s
+    while not sip_hungup.is_set():
+        await asyncio.sleep(2.0)
+        if sip_hungup.is_set():
+            break
+        elapsed = asyncio.get_event_loop().time() - state["last_audio_time"]
+        if elapsed >= SILENCE_TIMEOUT_SEC:
+            logger.warning("🔇 %ds silence — force-ending call for %s",
+                           SILENCE_TIMEOUT_SEC, phone_number)
+            await _log("warning", f"Force-ended after {SILENCE_TIMEOUT_SEC}s silence",
+                       f"phone={phone_number}")
+            sip_hungup.set()
+            try:
+                await tool_ctx.end_call(outcome="no_answer", reason=f"{SILENCE_TIMEOUT_SEC}s silence")
+            except Exception:
+                pass
+            try:
+                await ctx.room.disconnect()
+            except Exception:
+                pass
+            return
+
+    logger.info("🔇 Silence watchdog done")
+
+
+# ── FIX: LiveKit Egress recording to S3 ──────────────────────────────────────
+async def _start_recording(ctx: agents.JobContext, room_name: str) -> Optional[str]:
+    """
+    Starts a LiveKit Egress room composite recording.
+    Saves to S3 and returns the recording URL, or None if not configured.
+    """
+    s3_bucket   = os.getenv("S3_BUCKET", "")
+    s3_key_id   = os.getenv("S3_ACCESS_KEY_ID", "")
+    s3_secret   = os.getenv("S3_SECRET_ACCESS_KEY", "")
+    s3_endpoint = os.getenv("S3_ENDPOINT_URL", "")
+    s3_region   = os.getenv("S3_REGION", "ap-south-1")
+
+    if not all([s3_bucket, s3_key_id, s3_secret]):
+        logger.info("⏺  Recording skipped — S3 not configured")
+        return None
+
+    try:
+        from livekit.api.egress_service import EgressService
+        from livekit.api import RoomCompositeEgressRequest, EncodedFileOutput, S3Upload
+
+        lk_url     = os.getenv("LIVEKIT_URL", "").replace("wss://", "https://").replace("ws://", "http://")
+        lk_api_key = os.getenv("LIVEKIT_API_KEY", "")
+        lk_secret  = os.getenv("LIVEKIT_API_SECRET", "")
+
+        filepath = f"recordings/{room_name}.ogg"
+
+        req = RoomCompositeEgressRequest(
+            room_name=room_name,
+            audio_only=True,
+            file_outputs=[
+                EncodedFileOutput(
+                    filepath=filepath,
+                    s3=S3Upload(
+                        access_key=s3_key_id,
+                        secret=s3_secret,
+                        bucket=s3_bucket,
+                        region=s3_region,
+                        endpoint=s3_endpoint or "",
+                        force_path_style=True,
+                    ),
+                )
+            ],
+        )
+
+        async with aiohttp.ClientSession() as session:
+            svc = EgressService(session, lk_url, lk_api_key, lk_secret)
+            info = await svc.start_room_composite_egress(req)
+
+        logger.info("⏺  Recording started — egress_id=%s path=%s", info.egress_id, filepath)
+        if s3_endpoint:
+            recording_url = f"{s3_endpoint.rstrip('/')}/{s3_bucket}/{filepath}"
+        else:
+            recording_url = f"https://{s3_bucket}.s3.{s3_region}.amazonaws.com/{filepath}"
+
+        return recording_url
+
+    except Exception as exc:
+        logger.warning("⏺  Recording start failed (non-fatal): %s", exc)
+        return None
+
+
+async def _stop_recording(ctx: agents.JobContext, room_name: str, tool_ctx=None) -> None:
+    """Stop any active egress for this room, then generate signed URL and update DB."""
+    try:
+        from livekit.api.egress_service import EgressService
+        from livekit.api import ListEgressRequest, StopEgressRequest
+
+        lk_url     = os.getenv("LIVEKIT_URL", "").replace("wss://", "https://").replace("ws://", "http://")
+        lk_api_key = os.getenv("LIVEKIT_API_KEY", "")
+        lk_secret  = os.getenv("LIVEKIT_API_SECRET", "")
+
+        async with aiohttp.ClientSession() as session:
+            svc = EgressService(session, lk_url, lk_api_key, lk_secret)
+            active = await svc.list_egress(ListEgressRequest(room_name=room_name, active=True))
+            for e in (active.items or []):
+                try:
+                    await svc.stop_egress(StopEgressRequest(egress_id=e.egress_id))
+                    logger.info("⏹  Recording stopped — egress_id=%s", e.egress_id)
+                except Exception:
+                    pass
+
+        # Wait a few seconds for file to land on S3, then generate signed URL
+        if tool_ctx and tool_ctx.recording_url:
+            await asyncio.sleep(5)
+            try:
+                from supabase import create_client
+                s3_bucket = os.getenv("S3_BUCKET", "")
+                sb = create_client(os.getenv("SUPABASE_URL",""), os.getenv("SUPABASE_SERVICE_KEY",""))
+                filepath = f"recordings/{room_name}.ogg"
+                signed = sb.storage.from_(s3_bucket).create_signed_url(filepath, expires_in=60*60*24*30)
+                signed_url = signed.get("signedURL") or signed.get("signed_url") or signed.get("signedUrl","")
+                if signed_url:
+                    tool_ctx.recording_url = signed_url
+                    # Update the call log in DB with signed URL
+                    from db import _sdb
+                    db = _sdb()
+                    db.table("call_logs").update({"recording_url": signed_url}).eq("org_id", tool_ctx.org_id).eq("recording_url", tool_ctx.recording_url).execute()
+                    logger.info("⏺  Signed URL saved to DB")
+            except Exception as se:
+                logger.warning("⏺  Post-call signed URL failed: %s", se)
+
+    except Exception as exc:
+        logger.warning("⏺  Recording stop failed (non-fatal): %s", exc)
 
 
 async def entrypoint(ctx: agents.JobContext) -> None:
@@ -219,7 +422,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             pass
 
     if not org_id:
-        logger.error("❌ Job metadata has no org_id — refusing to run (dispatch_call must always embed it).")
+        logger.error("❌ Job metadata has no org_id — refusing to run.")
         await _log("error", "Job dispatched without org_id", f"room={ctx.room.name}")
         return
 
@@ -227,9 +430,6 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                 org_id, phone_number, lead_name, business_name, service_type)
 
     # ── Load agent profile ────────────────────────────────────────────────────
-    # get_agent_profile is called WITH org_id, so a profile belonging to a
-    # different tenant simply won't be returned — a guessed/forged
-    # agent_profile_id from a different org can never be loaded here.
     profile_tools = []
     if agent_profile_id:
         try:
@@ -241,7 +441,8 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                 profile_tools = json.loads(profile.get("enabled_tools", "[]") or "[]")
                 logger.info("✅ Profile loaded: %s", profile.get("name"))
             else:
-                logger.warning("⚠️  agent_profile_id %s not found for org %s — using defaults", agent_profile_id, org_id)
+                logger.warning("⚠️  agent_profile_id %s not found for org %s — using defaults",
+                               agent_profile_id, org_id)
         except Exception as exc:
             logger.warning("Profile load failed: %s", exc)
 
@@ -254,14 +455,11 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     tool_ctx = AppointmentTools(ctx, org_id, phone_number, lead_name, transfer_number=transfer_number)
 
-    # Twilio SMS stays disabled by default — Cal.com tools no longer exist in tools.py at all.
     DISABLED_TOOLS = {"send_sms_confirmation"}
 
     if enabled_tools:
-        # Filter from profile/DB tool list
         filtered = [t for t in enabled_tools if t not in DISABLED_TOOLS]
     else:
-        # Filter from full tool list
         filtered = [
             t.__name__ for t in tool_ctx.build_tool_list([])
             if t.__name__ not in DISABLED_TOOLS
@@ -291,9 +489,6 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             agent=_Agent(),
             room_input_options=RoomInputOptions(noise_cancellation=_get_nc()),
         )
-
-
-    # Priya speaks first via silent audio + hello text sent after call answer
 
     logger.info("✅ Session started — ready to dial")
 
@@ -346,11 +541,25 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             def _on_room_close(*_):
                 logger.info("🚪 Room closed")
                 room_closed.set()
-                sip_hungup.set()  # unblock wait
+                sip_hungup.set()
 
-            # Dial — sip_number sets the caller ID. Falls back to the trunk's own
-            # configured number if this org has no outbound_number assigned yet.
-            # Vobiz must have this number allow-listed as a valid "From" on the account.
+            # ── FIX: AMD (Answering Machine Detection) ────────────────────────
+            # LiveKit SIP detects voicemail/IVR and fires a SIP header attribute.
+            # We watch for it and end the call immediately if detected.
+            @ctx.room.on("sip_dtmf_received")
+            def _on_sip_event(digits, code):
+                pass  # not used but keeps the handler registered
+
+            # AMD is signalled via participant attributes set by LiveKit SIP
+            @ctx.room.on("participant_attributes_changed")
+            def _on_attrs(changed_attrs, participant):
+                amd_result = changed_attrs.get("sip.callStatus") or changed_attrs.get("amd_result", "")
+                if amd_result in ("voicemail", "machine", "machine_end_beep",
+                                  "machine_end_silence", "machine_end_other"):
+                    logger.info("📵 Voicemail/AMD detected (%s) — ending call", amd_result)
+                    asyncio.ensure_future(_handle_voicemail(tool_ctx, sip_hungup, ctx))
+
+            # ── Dial ──────────────────────────────────────────────────────────
             caller_id = outbound_number or os.getenv("VOBIZ_OUTBOUND_NUMBER", "")
             try:
                 request_kwargs = dict(
@@ -362,45 +571,43 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                 )
                 if caller_id:
                     request_kwargs["sip_number"] = caller_id
-                await ctx.api.sip.create_sip_participant(api.CreateSIPParticipantRequest(**request_kwargs))
+
+                await ctx.api.sip.create_sip_participant(
+                    api.CreateSIPParticipantRequest(**request_kwargs)
+                )
                 logger.info("📡 Ringing %s… (caller ID: %s)", phone_number, caller_id or "trunk default")
             except Exception as exc:
                 logger.error("❌ Dial failed for %s: %s", phone_number, exc)
                 await _log("error", f"Dial failed for {phone_number}", str(exc))
                 return
 
-            # Wait for answer
+            # ── Wait for answer ───────────────────────────────────────────────
             try:
                 await asyncio.wait_for(answered.wait(), timeout=45.0)
-                # FIX 1: Minimal buffer — session is already warmed, agent speaks fast
                 await asyncio.sleep(0.1)
                 logger.info("🗣  Call answered — Gemini Live is active for %s", phone_number)
-                # Push silent audio to trigger Gemini to speak first.
-                # gemini-3.1-flash-live-preview won't speak unprompted — feeding it
-                # silence makes it detect end-of-speech and respond with the greeting.
+
+                # Recording disabled — S3 signature issue with Supabase
+                # recording_url = await _start_recording(ctx, ctx.room.name)
+
+                # Trigger Priya to speak first
                 try:
-                    from livekit import rtc as _rtc
-                    import numpy as np
+                    from google.genai import types as _gt
                     realtime_model = session._llm
                     for rs in list(realtime_model._sessions):
-                        # 1 second of silence at 16kHz mono (Gemini input format)
-                        silent_data = bytes(16000 * 2)  # 16000 samples * 2 bytes each
-                        silent_frame = _rtc.AudioFrame(
-                            data=silent_data,
-                            sample_rate=16000,
-                            num_channels=1,
-                            samples_per_channel=16000,
-                        )
-                        # Send "hello" as realtime text input — mimics user speaking
-                        # This triggers Gemini exactly like when user says hello
-                        from google.genai import types as _gt
                         rs._send_client_event(
                             _gt.LiveClientRealtimeInput(text="hello")
                         )
                         logger.info("✅ Sent hello text to trigger Priya greeting")
                         break
                 except Exception as e:
-                    logger.warning("Silent audio push failed: %s", e)
+                    logger.warning("Hello trigger failed: %s", e)
+
+                # ── FIX: Start silence watchdog ───────────────────────────────
+                watchdog_task = asyncio.ensure_future(
+                    _silence_watchdog(sip_hungup, ctx, tool_ctx, phone_number)
+                )
+
             except asyncio.TimeoutError:
                 logger.warning("⏱  No answer after 45s: %s", phone_number)
                 await _log("warning", f"No answer: {phone_number}")
@@ -410,10 +617,19 @@ async def entrypoint(ctx: agents.JobContext) -> None:
                     pass
                 return
 
-            # Wait for call to end
+            # ── Wait for call to end ──────────────────────────────────────────
             logger.info("⏳ Call in progress: %s", phone_number)
             await sip_hungup.wait()
             logger.info("✅ Call ended: %s", phone_number)
+
+            # Cancel watchdog if still running
+            try:
+                watchdog_task.cancel()
+            except Exception:
+                pass
+
+            # Recording disabled
+            # await _stop_recording(ctx, ctx.room.name, tool_ctx)
 
             try:
                 await ctx.room.disconnect()
@@ -429,6 +645,22 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     await done.wait()
     logger.info("🏁 Session done")
+
+
+async def _handle_voicemail(tool_ctx, sip_hungup: asyncio.Event,
+                             ctx: agents.JobContext) -> None:
+    """Called when AMD detects a voicemail/machine. Ends call immediately."""
+    if sip_hungup.is_set():
+        return
+    try:
+        await tool_ctx.end_call(outcome="voicemail", reason="AMD detected answering machine")
+    except Exception:
+        pass
+    sip_hungup.set()
+    try:
+        await ctx.room.disconnect()
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

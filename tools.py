@@ -106,6 +106,29 @@ class AppointmentTools(llm.ToolContext):
             )
         except Exception as exc:
             logger.error("Failed to log call: %s", exc)
+        # Force-remove SIP participant to actually terminate the call on Vobiz side
+        try:
+            import aiohttp
+            from livekit.api.room_service import RoomService
+            from livekit.api.room_service import RoomParticipantIdentity
+            import os
+            lk_url = os.getenv("LIVEKIT_URL", "").replace("wss://", "https://").replace("ws://", "http://")
+            lk_key = os.getenv("LIVEKIT_API_KEY", "")
+            lk_secret = os.getenv("LIVEKIT_API_SECRET", "")
+            async with aiohttp.ClientSession() as session:
+                svc = RoomService(session, lk_url, lk_key, lk_secret)
+                for p in self.ctx.room.remote_participants.values():
+                    if "sip_" in p.identity or (self.phone_number and self.phone_number.replace("+","") in p.identity):
+                        await svc.remove_participant(
+                            RoomParticipantIdentity(
+                                room=self.ctx.room.name,
+                                identity=p.identity,
+                            )
+                        )
+                        logger.info("📴 SIP participant removed: %s", p.identity)
+                        break
+        except Exception as e:
+            logger.warning("SIP remove_participant failed: %s", e)
         try:
             await self.ctx.room.disconnect()
         except Exception:
