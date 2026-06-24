@@ -765,6 +765,7 @@ function nav(id, el) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('s-' + id).classList.add('active');
   if (el) el.classList.add('active');
+  localStorage.setItem('admin_last_section', id);
   const loaders = {
     'overview':  loadOverview,
     'health':    loadHealth,
@@ -856,7 +857,9 @@ async function handleLogin(e) {
     const data = await r.json();
     if (data.role !== 'platform_admin') throw new Error('Access denied — platform admin account required.');
     hideLogin();
-    loadOverview();
+    const lastAdmin = localStorage.getItem('admin_last_section') || 'overview';
+    const el = document.querySelector(`[data-section="${lastAdmin}"]`);
+    if (el) el.click(); else loadOverview();
   } catch (err) {
     errEl.textContent = err.message;
     errEl.style.display = 'block';
@@ -876,7 +879,9 @@ async function bootstrap() {
     const info = await r.json();
     if (info.role !== 'platform_admin') { showLogin(); return; }
     hideLogin();
-    loadOverview();
+    const lastAdmin = localStorage.getItem('admin_last_section') || 'overview';
+    const el = document.querySelector(`[data-section="${lastAdmin}"]`);
+    if (el) el.click(); else loadOverview();
   } catch(e) { showLogin(); }
 }
 

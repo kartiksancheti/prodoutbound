@@ -1159,3 +1159,49 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     scheduler.shutdown(wait=False)
+
+# ── Vobiz Recording Webhook ───────────────────────────────────────────────────
+@app.post("/api/webhooks/vobiz-recording")
+async def vobiz_recording_webhook(request: Request):
+    """Receives recording events from Vobiz after each call completes."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = await request.body()
+        body = {"raw": body.decode("utf-8", errors="replace")}
+
+    logger.info("📼 Vobiz webhook received: %s", json.dumps(body))
+
+    # Extract fields — log first, match later once we know the payload format
+    recording_url = (
+        body.get("recording_url") or
+        body.get("recordingUrl") or
+        body.get("recording") or
+        body.get("media_url") or
+        body.get("url") or ""
+    )
+    phone_number = (
+        body.get("to_number") or
+        body.get("to") or
+        body.get("phone_number") or
+        body.get("destination") or
+        body.get("called_number") or
+        body.get("dest_number") or ""
+    )
+    call_id = body.get("call_id") or body.get("callId") or body.get("uuid") or ""
+
+    logger.info("📼 Vobiz recording_url=%s phone=%s call_id=%s", recording_url, phone_number, call_id)
+
+    if recording_url and phone_number:
+        try:
+            from db import _sdb
+            db = _sdb()
+            # Match by phone number, update most recent call without a recording
+            r = db.table("call_logs").select("id").eq("phone_number", phone_number).is_("recording_url", "null").order("timestamp", desc=True).limit(1).execute()
+            if r.data:
+                db.table("call_logs").update({"recording_url": recording_url}).eq("id", r.data[0]["id"]).execute()
+                logger.info("📼 Recording URL saved for %s", phone_number)
+        except Exception as e:
+            logger.error("📼 Failed to save recording URL: %s", e)
+
+    return {"status": "ok"}

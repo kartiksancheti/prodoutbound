@@ -106,6 +106,8 @@ class AppointmentTools(llm.ToolContext):
             )
         except Exception as exc:
             logger.error("Failed to log call: %s", exc)
+        # Wait for Priya to finish speaking before disconnecting
+        await asyncio.sleep(3)
         # Force-remove SIP participant to actually terminate the call on Vobiz side
         try:
             import aiohttp
