@@ -547,7 +547,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             # LiveKit SIP detects voicemail/IVR and fires a SIP header attribute.
             # We watch for it and end the call immediately if detected.
             @ctx.room.on("sip_dtmf_received")
-            def _on_sip_event(digits, code):
+            def _on_sip_event(*args, **kwargs):
                 pass  # not used but keeps the handler registered
 
             # AMD is signalled via participant attributes set by LiveKit SIP
