@@ -687,8 +687,8 @@ async def admin_tenant_quota(org_id: str, user: CurrentUser = Depends(require_pl
     if not org:
         raise HTTPException(404, "Organization not found")
     today = date.today().isoformat()
-    r = db.table("org_call_counters").select("call_count").eq("org_id", org_id).eq("date", today).execute()
-    used = r.data[0]["call_count"] if r.data else 0
+    r = db.table("org_call_counters").select("count").eq("org_id", org_id).eq("day", today).execute()
+    used = r.data[0]["count"] if r.data else 0
     return {"used": used, "cap": org["max_calls_per_day"], "remaining": max(0, org["max_calls_per_day"] - used)}
 
 
@@ -702,6 +702,66 @@ async def admin_tenant_errors(org_id: str, limit: int = 50, user: CurrentUser = 
     return r.data
 
 
+# ── Admin: platform-wide error logs ──────────────────────────────────────────
+
+@app.get("/api/admin/errors")
+async def admin_all_errors(limit: int = Query(200), level: Optional[str] = Query(None), user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    db = _sdb()
+    q = db.table("error_logs").select("*").order("timestamp", desc=True).limit(limit)
+    if level:
+        q = q.eq("level", level)
+    r = q.execute()
+    return r.data
+
+
+# ── Admin: platform-wide campaigns ───────────────────────────────────────────
+
+@app.get("/api/admin/campaigns")
+async def admin_all_campaigns(user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    db = _sdb()
+    r = db.table("campaigns").select("id,org_id,name,status,schedule_type,schedule_time,total_dispatched,total_failed,created_at,last_run_at").order("created_at", desc=True).execute()
+    campaigns = r.data or []
+    orgs_r = db.table("organizations").select("id,name").execute()
+    org_map = {o["id"]: o["name"] for o in (orgs_r.data or [])}
+    for c in campaigns:
+        c["org_name"] = org_map.get(c["org_id"], "Unknown")
+    return campaigns
+
+
+@app.patch("/api/admin/campaigns/{campaign_id}/status")
+async def admin_update_campaign_status(campaign_id: str, status: str = Query(...), user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    db = _sdb()
+    r = db.table("campaigns").update({"status": status}).eq("id", campaign_id).execute()
+    if not r.data:
+        raise HTTPException(404, "Campaign not found")
+    return {"updated": True}
+
+
+# ── Admin: export tenant calls as CSV ────────────────────────────────────────
+
+@app.get("/api/admin/tenants/{org_id}/calls/export")
+async def admin_export_calls(org_id: str, user: CurrentUser = Depends(require_platform_admin)):
+    from db import _sdb
+    from fastapi.responses import StreamingResponse
+    import csv as _csv, io as _io
+    db = _sdb()
+    r = db.table("call_logs").select("*").eq("org_id", org_id).order("timestamp", desc=True).limit(5000).execute()
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=["timestamp","phone_number","lead_name","outcome","duration_seconds","notes"])
+    writer.writeheader()
+    for row in (r.data or []):
+        writer.writerow({k: row.get(k, "") for k in writer.fieldnames})
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=calls_{org_id[:8]}.csv"}
+    )
+
+
 # ── Tenant: quota usage today ─────────────────────────────────────────────────
 
 @app.get("/api/quota")
@@ -713,8 +773,8 @@ async def get_my_quota(user: CurrentUser = Depends(require_org_user)):
     if not org:
         raise HTTPException(404, "Organization not found")
     today = date.today().isoformat()
-    r = db.table("org_call_counters").select("call_count").eq("org_id", user.org_id).eq("date", today).execute()
-    used = r.data[0]["call_count"] if r.data else 0
+    r = db.table("org_call_counters").select("count").eq("org_id", user.org_id).eq("day", today).execute()
+    used = r.data[0]["count"] if r.data else 0
     cap  = org["max_calls_per_day"]
     return {"used": used, "cap": cap, "remaining": max(0, cap - used), "percent": round(used / cap * 100) if cap else 0}
 

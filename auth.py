@@ -113,9 +113,9 @@ def _extract_token(request: Request) -> Optional[str]:
     # based on which route is being hit, so both sessions coexist in one browser.
     is_admin_route = request.url.path.startswith("/api/admin") or request.url.path == "/admin"
     if is_admin_route:
-        token = request.cookies.get(ADMIN_SESSION_COOKIE) or request.cookies.get(SESSION_COOKIE)
+        token = request.cookies.get(ADMIN_SESSION_COOKIE)
     else:
-        token = request.cookies.get(SESSION_COOKIE) or request.cookies.get(ADMIN_SESSION_COOKIE)
+        token = request.cookies.get(SESSION_COOKIE)
     if token:
         return token
     auth_header = request.headers.get("authorization", "")

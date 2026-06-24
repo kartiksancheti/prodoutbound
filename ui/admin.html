@@ -16,7 +16,7 @@
   }
   body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: flex; height: 100vh; overflow: hidden; }
 
-  #sidebar { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 0; }
+  #sidebar { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px 0; overflow-y: auto; }
   .logo { padding: 0 20px 6px; font-size: 18px; font-weight: 700; color: var(--primary); }
   .logo span { color: var(--warning); font-size: 11px; font-weight: 600; display: block; margin-top: 2px; letter-spacing: .5px; text-transform: uppercase; }
   .admin-badge { margin: 0 20px 20px; background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.3); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--warning); }
@@ -26,6 +26,7 @@
   .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
   .nav-badge { margin-left: auto; background: var(--danger); color: #fff; border-radius: 10px; font-size: 10px; padding: 1px 6px; font-weight: 700; }
   .nav-sep { height: 1px; background: var(--border); margin: 8px 20px; }
+  .nav-section-label { padding: 6px 20px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--text3); }
 
   .login-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
   .login-overlay.hidden { display: none; }
@@ -38,7 +39,7 @@
   h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
 
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; cursor:default; }
   .card-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
   .card-value { font-size: 28px; font-weight: 700; color: var(--text); }
   .card-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
@@ -108,6 +109,70 @@
   /* Filter bar */
   .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
   .filter-bar select, .filter-bar input { width: auto; }
+
+  /* Health status */
+  .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .health-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; display: flex; align-items: center; gap: 14px; }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .health-dot.ok { background: var(--success); box-shadow: 0 0 8px var(--success); }
+  .health-dot.warn { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+  .health-dot.err { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+  .health-label { font-size: 11px; color: var(--text3); }
+  .health-value { font-size: 14px; font-weight: 600; }
+
+  /* Settings */
+  .settings-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+  .settings-group h3 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); margin-bottom: 16px; }
+  .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .setting-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .setting-field label { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .configured-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; }
+  .not-configured-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); display: inline-block; }
+
+  /* Error logs */
+  .error-row { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+  .error-row.level-error { border-left: 3px solid var(--danger); }
+  .error-row.level-warning { border-left: 3px solid var(--warning); }
+  .error-row.level-info { border-left: 3px solid var(--primary); }
+  .error-meta { font-size: 11px; color: var(--text3); margin-bottom: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .error-msg { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .error-detail { font-size: 12px; color: var(--text2); font-family: monospace; background: var(--surface2); padding: 6px 8px; border-radius: 4px; margin-top: 4px; white-space: pre-wrap; word-break: break-all; }
+
+  /* Audit log */
+  .audit-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; align-items: flex-start; }
+  .audit-time { color: var(--text3); font-size: 12px; min-width: 150px; flex-shrink: 0; }
+  .audit-action { flex: 1; }
+  .audit-who { color: var(--primary); font-size: 12px; margin-top: 2px; }
+  .audit-target { color: var(--text2); font-size: 12px; }
+
+  /* Pagination */
+  .pagination { display: flex; gap: 6px; align-items: center; justify-content: center; margin-top: 16px; }
+  .pagination button { padding: 5px 12px; }
+  .pagination .page-info { font-size: 13px; color: var(--text2); padding: 0 8px; }
+
+  /* Quota burn bar */
+  .quota-burn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; }
+  .quota-burn-header { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+  .quota-burn-grid { display: grid; gap: 10px; }
+  .quota-burn-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .quota-burn-name { width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+  .quota-burn-bar-wrap { flex: 1; background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; }
+  .quota-burn-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .quota-burn-val { width: 80px; text-align: right; color: var(--text3); }
+
+  /* Agent profiles overview */
+  .profile-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 11px; color: var(--text2); margin: 2px; }
+  .profile-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+
+  /* Search box */
+  .search-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 12px; font-size: 13px; outline: none; transition: border-color .15s; }
+  .search-input:focus { border-color: var(--primary); }
+
+  /* Tenant onboarding health */
+  .onboard-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+  .onboard-ok { background: var(--success); }
+  .onboard-warn { background: var(--warning); }
+  .onboard-err { background: var(--danger); }
 </style>
 </head>
 <body>
@@ -131,26 +196,58 @@
   <div class="logo">OutboundAI <span>Admin Console</span></div>
   <div class="admin-badge">⚡ Platform Admin</div>
 
-  <div class="nav-item active" onclick="nav('overview')">
+  <div class="nav-section-label">Platform</div>
+  <div class="nav-item active" data-section="overview" onclick="nav('overview',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     Overview
   </div>
-  <div class="nav-item" onclick="nav('tenants')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  <div class="nav-item" data-section="health" onclick="nav('health',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    System Health
+  </div>
+  <div class="nav-item" data-section="audit" onclick="nav('audit',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+    Audit Log
+  </div>
+
+  <div class="nav-sep"></div>
+  <div class="nav-section-label">Tenants</div>
+  <div class="nav-item" data-section="tenants" onclick="nav('tenants',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Tenants
   </div>
-  <div class="nav-sep"></div>
-  <div class="nav-item" onclick="nav('users')">
+  <div class="nav-item" data-section="users" onclick="nav('users',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     Users
   </div>
-  <div class="nav-item" onclick="nav('support')">
+  <div class="nav-item" data-section="campaigns" onclick="nav('campaigns',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+    Campaigns
+  </div>
+  <div class="nav-item" data-section="quota" onclick="nav('quota',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    Quota Monitor
+  </div>
+
+  <div class="nav-sep"></div>
+  <div class="nav-section-label">Operations</div>
+  <div class="nav-item" data-section="support" onclick="nav('support',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     Support Tickets
     <span class="nav-badge" id="open-ticket-count" style="display:none">0</span>
   </div>
-  <div class="nav-sep"></div>
-  <div class="nav-item" onclick="handleLogout()" style="margin-top:auto">
+  <div class="nav-item" data-section="errors" onclick="nav('errors',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Error Logs
+    <span class="nav-badge" id="error-badge" style="display:none">!</span>
+  </div>
+  <div class="nav-item" data-section="settings" onclick="nav('settings',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    Platform Settings
+  </div>
+
+  <div class="nav-sep" style="margin-top:auto"></div>
+  <div class="nav-item" onclick="handleLogout()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
     Log Out
   </div>
@@ -178,25 +275,39 @@
       <div class="card-sub">support requests</div>
     </div>
     <div class="card">
+      <div class="card-label">Active Campaigns</div>
+      <div class="card-value" id="ov-active-campaigns" style="color:var(--success)">—</div>
+      <div class="card-sub">running now</div>
+    </div>
+    <div class="card">
       <div class="card-label">Errors Today</div>
       <div class="card-value" id="ov-errors" style="color:var(--danger)">—</div>
       <div class="card-sub">across all tenants</div>
     </div>
   </div>
 
+  <!-- Charts -->
+  <div class="charts">
+    <div class="chart-box">
+      <h3>📞 Calls Per Tenant (All Time)</h3>
+      <canvas id="chart-calls" height="120"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>📊 Booking Rate by Tenant</h3>
+      <canvas id="chart-booking" height="120"></canvas>
+    </div>
+  </div>
+
   <h2 style="font-size:15px;margin-bottom:14px">Tenant Activity</h2>
+  <div style="margin-bottom:12px">
+    <input class="search-input" id="overview-search" placeholder="🔍 Search tenants…" oninput="filterOverviewTenants()" style="width:240px">
+  </div>
   <div class="table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Tenant</th>
-          <th>Status</th>
-          <th>Total Calls</th>
-          <th>Booked</th>
-          <th>Book Rate</th>
-          <th>Avg Duration</th>
-          <th>Users</th>
-          <th>Actions</th>
+          <th>Tenant</th><th>Status</th><th>Total Calls</th><th>Booked</th>
+          <th>Book Rate</th><th>Avg Duration</th><th>Health</th><th>Actions</th>
         </tr>
       </thead>
       <tbody id="overview-tenants-tbody">
@@ -206,36 +317,84 @@
   </div>
 </section>
 
+<!-- ── SYSTEM HEALTH ─────────────────────────────────────────────── -->
+<section id="s-health" class="section">
+  <h2>System Health</h2>
+  <div class="health-grid" id="health-grid">
+    <div class="health-card"><div class="health-dot warn" id="hd-status"></div><div><div class="health-label">API Status</div><div class="health-value" id="hv-status">Loading…</div></div></div>
+    <div class="health-card"><div class="health-dot ok" id="hd-scheduler"></div><div><div class="health-label">Scheduler</div><div class="health-value" id="hv-scheduler">—</div></div></div>
+    <div class="health-card"><div class="health-dot ok"></div><div><div class="health-label">Version</div><div class="health-value" id="hv-version">—</div></div></div>
+    <div class="health-card"><div class="health-dot ok"></div><div><div class="health-label">Uptime</div><div class="health-value" id="hv-uptime">—</div></div></div>
+  </div>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="loadHealth()">↻ Refresh</button>
+    <span style="font-size:12px;color:var(--text3)" id="health-timestamp"></span>
+  </div>
+  <div style="margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">⚠️ Scheduler Warning</div>
+    <p style="font-size:13px;color:var(--text2);line-height:1.6">If the scheduler status is not <strong style="color:var(--success)">running</strong>, all daily and weekday campaigns will silently stop firing. Check server logs immediately and restart the service.</p>
+  </div>
+</section>
+
+<!-- ── AUDIT LOG ─────────────────────────────────────────────────── -->
+<section id="s-audit" class="section">
+  <h2>Audit Log</h2>
+  <div class="filter-bar">
+    <select id="audit-action-filter" onchange="renderAudit()">
+      <option value="">All actions</option>
+      <option value="tenant_created">Tenant Created</option>
+      <option value="tenant_updated">Tenant Updated</option>
+      <option value="tenant_suspended">Tenant Suspended</option>
+      <option value="tenant_activated">Tenant Activated</option>
+      <option value="user_created">User Created</option>
+      <option value="user_toggled">User Toggled</option>
+      <option value="password_reset">Password Reset</option>
+      <option value="campaign_paused">Campaign Paused</option>
+      <option value="campaign_resumed">Campaign Resumed</option>
+      <option value="settings_saved">Settings Saved</option>
+      <option value="ticket_updated">Ticket Updated</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="clearAudit()">🗑 Clear Log</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportAudit()">⬇ Export CSV</button>
+    <span style="font-size:12px;color:var(--text3);margin-left:auto" id="audit-count"></span>
+  </div>
+  <div id="audit-container">
+    <div class="empty">No audit entries yet. Admin actions will appear here.</div>
+  </div>
+</section>
+
 <!-- ── TENANTS ───────────────────────────────────────────────────── -->
 <section id="s-tenants" class="section">
   <h2>Tenant Management</h2>
   <div class="page-actions">
     <button class="btn btn-primary" onclick="openNewTenantModal()">+ New Tenant</button>
-    <button class="btn btn-ghost" onclick="loadTenants()">Refresh</button>
+    <button class="btn btn-ghost" onclick="loadTenants()">↻ Refresh</button>
+    <input class="search-input ml-auto" id="tenant-search" placeholder="🔍 Search…" oninput="filterTenants()" style="width:200px">
   </div>
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>Name</th>
-          <th>Slug</th>
-          <th>Status</th>
-          <th>Outbound #</th>
-          <th>Daily Cap</th>
-          <th>Total Calls</th>
-          <th>Created</th>
-          <th>Actions</th>
-        </tr>
+        <tr><th>Name</th><th>Slug</th><th>Status</th><th>Outbound #</th><th>Daily Cap</th><th>Total Calls</th><th>Onboarding</th><th>Created</th><th>Actions</th></tr>
       </thead>
       <tbody id="tenants-tbody">
-        <tr><td colspan="8" class="empty">Loading…</td></tr>
+        <tr><td colspan="9" class="empty">Loading…</td></tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Tenant drill-down -->
   <div class="tenant-panel" id="tenant-drilldown" style="display:none">
-    <h3 id="drilldown-title">Recent Calls</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3 id="drilldown-title">Recent Calls</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" id="drilldown-export-btn" onclick="exportTenantCalls()">⬇ Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('tenant-drilldown').style.display='none'">✕ Close</button>
+      </div>
+    </div>
+    <div class="pagination" id="drilldown-pagination" style="display:none;margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm" onclick="drilldownPage(-1)">← Prev</button>
+      <span class="page-info" id="drilldown-page-info"></span>
+      <button class="btn btn-ghost btn-sm" onclick="drilldownPage(1)">Next →</button>
+    </div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Phone</th><th>Lead</th><th>Outcome</th><th>Duration</th><th>Time</th><th>Notes</th></tr></thead>
@@ -245,24 +404,6 @@
   </div>
 </section>
 
-<!-- ── SUPPORT TICKETS ───────────────────────────────────────────── -->
-<section id="s-support" class="section">
-  <h2>Support Tickets</h2>
-  <div class="filter-bar">
-    <select id="ticket-filter" onchange="loadTickets()">
-      <option value="">All tickets</option>
-      <option value="open">Open</option>
-      <option value="in_progress">In Progress</option>
-      <option value="resolved">Resolved</option>
-    </select>
-    <button class="btn btn-ghost ml-auto" onclick="loadTickets()">Refresh</button>
-  </div>
-  <div id="tickets-container">
-    <div class="empty">Loading…</div>
-  </div>
-</section>
-
-
 <!-- ── USERS ────────────────────────────────────────────────────── -->
 <section id="s-users" class="section">
   <h2>Tenant Users</h2>
@@ -270,16 +411,10 @@
     <select id="users-org-filter" onchange="loadUsers()">
       <option value="">Select a tenant…</option>
     </select>
-    <button class="btn btn-ghost ml-auto" onclick="loadUsers()">Refresh</button>
-  </div>
-  <div class="table-wrap">
-    <table>
-      <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
-      <tbody id="users-tbody"><tr><td colspan="5" class="empty">Select a tenant above</td></tr></tbody>
-    </table>
+    <button class="btn btn-primary btn-sm" id="add-user-btn" style="display:none" onclick="openAddUserModal()">+ Add User</button>
+    <button class="btn btn-ghost ml-auto" onclick="loadUsers()">↻ Refresh</button>
   </div>
 
-  <!-- Quota card -->
   <div id="quota-card" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px">
     <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Today's Call Quota</div>
     <div style="display:flex;align-items:center;gap:16px">
@@ -293,9 +428,161 @@
     </div>
   </div>
 
-  <!-- Error logs -->
-  <h3 style="font-size:14px;margin-bottom:12px;color:var(--text2)" id="errors-title" style="display:none">Recent Errors</h3>
+  <!-- Agent Profiles for this tenant -->
+  <div id="tenant-profiles-card" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+    <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px">Agent Profiles</div>
+    <div id="tenant-profiles-list">—</div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead>
+      <tbody id="users-tbody"><tr><td colspan="5" class="empty">Select a tenant above</td></tr></tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:14px;margin-bottom:12px;color:var(--text2);display:none" id="errors-title">Recent Errors</h3>
   <div id="errors-container"></div>
+</section>
+
+<!-- ── CAMPAIGNS ─────────────────────────────────────────────────── -->
+<section id="s-campaigns" class="section">
+  <h2>All Campaigns</h2>
+  <div class="filter-bar">
+    <select id="campaign-status-filter" onchange="loadCampaigns()">
+      <option value="">All statuses</option>
+      <option value="active">Active</option>
+      <option value="completed">Completed</option>
+      <option value="paused">Paused</option>
+    </select>
+    <input class="search-input" id="campaign-search" placeholder="🔍 Search campaigns…" oninput="filterCampaigns()" style="width:200px">
+    <button class="btn btn-ghost ml-auto" onclick="loadCampaigns()">↻ Refresh</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Campaign</th><th>Tenant</th><th>Status</th><th>Schedule</th><th>Dispatched</th><th>Failed</th><th>Last Run</th><th>Created</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="campaigns-tbody">
+        <tr><td colspan="9" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── QUOTA MONITOR ─────────────────────────────────────────────── -->
+<section id="s-quota" class="section">
+  <h2>Quota Monitor — Today</h2>
+  <div class="page-actions">
+    <button class="btn btn-ghost" onclick="loadQuota()">↻ Refresh</button>
+    <span style="font-size:12px;color:var(--text3)" id="quota-timestamp"></span>
+  </div>
+  <div id="quota-burn-container">
+    <div class="empty">Loading…</div>
+  </div>
+</section>
+
+<!-- ── SUPPORT TICKETS ───────────────────────────────────────────── -->
+<section id="s-support" class="section">
+  <h2>Support Tickets</h2>
+  <div class="filter-bar">
+    <select id="ticket-filter" onchange="loadTickets()">
+      <option value="">All tickets</option>
+      <option value="open">Open</option>
+      <option value="in_progress">In Progress</option>
+      <option value="resolved">Resolved</option>
+    </select>
+    <button class="btn btn-ghost ml-auto" onclick="loadTickets()">↻ Refresh</button>
+  </div>
+  <div id="tickets-container"><div class="empty">Loading…</div></div>
+</section>
+
+<!-- ── ERROR LOGS ────────────────────────────────────────────────── -->
+<section id="s-errors" class="section">
+  <h2>Platform Error Logs</h2>
+  <div class="filter-bar">
+    <select id="error-level-filter" onchange="loadErrors()">
+      <option value="">All levels</option>
+      <option value="error">Error</option>
+      <option value="warning">Warning</option>
+      <option value="info">Info</option>
+    </select>
+    <select id="error-tenant-filter" onchange="loadErrors()">
+      <option value="">All tenants</option>
+    </select>
+    <button class="btn btn-ghost ml-auto" onclick="loadErrors()">↻ Refresh</button>
+  </div>
+  <div id="errors-log-container"><div class="empty">Loading…</div></div>
+</section>
+
+<!-- ── PLATFORM SETTINGS ─────────────────────────────────────────── -->
+<section id="s-settings" class="section">
+  <h2>Platform Settings</h2>
+  <div class="page-actions">
+    <span style="font-size:12px;color:var(--text3)">
+      <span class="configured-dot" style="margin-right:4px"></span>Configured
+      <span class="not-configured-dot" style="margin-right:4px;margin-left:10px"></span>Not set
+    </span>
+    <button class="btn btn-primary ml-auto" onclick="saveSettings()">💾 Save All Settings</button>
+  </div>
+
+  <div class="settings-group">
+    <h3>LiveKit</h3>
+    <div class="settings-row">
+      <div class="setting-field"><label>LIVEKIT_URL</label><input id="st-LIVEKIT_URL" placeholder="wss://your-project.livekit.cloud"></div>
+      <div class="setting-field"><label>LIVEKIT_API_KEY <span class="not-configured-dot" id="dot-LIVEKIT_API_KEY"></span></label><input id="st-LIVEKIT_API_KEY" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>LIVEKIT_API_SECRET <span class="not-configured-dot" id="dot-LIVEKIT_API_SECRET"></span></label><input id="st-LIVEKIT_API_SECRET" type="password" placeholder="••••••••"></div>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <h3>Google / Gemini</h3>
+    <div class="settings-row">
+      <div class="setting-field"><label>GOOGLE_API_KEY <span class="not-configured-dot" id="dot-GOOGLE_API_KEY"></span></label><input id="st-GOOGLE_API_KEY" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>GEMINI_MODEL</label><input id="st-GEMINI_MODEL" placeholder="gemini-3.1-flash-live-preview"></div>
+      <div class="setting-field"><label>GEMINI_TTS_VOICE</label><input id="st-GEMINI_TTS_VOICE" placeholder="Aoede"></div>
+      <div class="setting-field"><label>USE_GEMINI_REALTIME</label>
+        <select id="st-USE_GEMINI_REALTIME"><option value="">Default</option><option value="true">true</option><option value="false">false</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <h3>VoBiz / SIP</h3>
+    <div class="settings-row">
+      <div class="setting-field"><label>VOBIZ_SIP_DOMAIN</label><input id="st-VOBIZ_SIP_DOMAIN" placeholder="sip.vobiz.com"></div>
+      <div class="setting-field"><label>VOBIZ_USERNAME</label><input id="st-VOBIZ_USERNAME" placeholder="username"></div>
+      <div class="setting-field"><label>VOBIZ_PASSWORD <span class="not-configured-dot" id="dot-VOBIZ_PASSWORD"></span></label><input id="st-VOBIZ_PASSWORD" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>VOBIZ_OUTBOUND_NUMBER</label><input id="st-VOBIZ_OUTBOUND_NUMBER" placeholder="+91..."></div>
+      <div class="setting-field"><label>OUTBOUND_TRUNK_ID</label><input id="st-OUTBOUND_TRUNK_ID" placeholder="TRK_..."></div>
+      <div class="setting-field"><label>DEFAULT_TRANSFER_NUMBER</label><input id="st-DEFAULT_TRANSFER_NUMBER" placeholder="+91..."></div>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <h3>Deepgram / Twilio</h3>
+    <div class="settings-row">
+      <div class="setting-field"><label>DEEPGRAM_API_KEY <span class="not-configured-dot" id="dot-DEEPGRAM_API_KEY"></span></label><input id="st-DEEPGRAM_API_KEY" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>TWILIO_ACCOUNT_SID</label><input id="st-TWILIO_ACCOUNT_SID" placeholder="AC..."></div>
+      <div class="setting-field"><label>TWILIO_AUTH_TOKEN <span class="not-configured-dot" id="dot-TWILIO_AUTH_TOKEN"></span></label><input id="st-TWILIO_AUTH_TOKEN" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>TWILIO_FROM_NUMBER</label><input id="st-TWILIO_FROM_NUMBER" placeholder="+1..."></div>
+    </div>
+  </div>
+
+  <div class="settings-group">
+    <h3>S3 Storage</h3>
+    <div class="settings-row">
+      <div class="setting-field"><label>S3_ACCESS_KEY_ID</label><input id="st-S3_ACCESS_KEY_ID" placeholder="AKIA..."></div>
+      <div class="setting-field"><label>S3_SECRET_ACCESS_KEY <span class="not-configured-dot" id="dot-S3_SECRET_ACCESS_KEY"></span></label><input id="st-S3_SECRET_ACCESS_KEY" type="password" placeholder="••••••••"></div>
+      <div class="setting-field"><label>S3_ENDPOINT_URL</label><input id="st-S3_ENDPOINT_URL" placeholder="https://s3.amazonaws.com"></div>
+      <div class="setting-field"><label>S3_REGION</label><input id="st-S3_REGION" placeholder="ap-south-1"></div>
+      <div class="setting-field"><label>S3_BUCKET</label><input id="st-S3_BUCKET" placeholder="my-bucket"></div>
+    </div>
+  </div>
+
+  <div style="text-align:right;margin-top:8px">
+    <button class="btn btn-primary" onclick="saveSettings()">💾 Save All Settings</button>
+  </div>
 </section>
 
 </main>
@@ -306,12 +593,18 @@
 <div class="modal-backdrop" id="new-tenant-modal">
   <div class="modal">
     <h3>Add New Tenant</h3>
-    <div class="form-group"><label>Business Name *</label><input id="nt-name" placeholder="Apex Dental Clinic"></div>
-    <div class="form-group"><label>Slug * (URL-safe, e.g. apex-dental)</label><input id="nt-slug" placeholder="apex-dental"></div>
-    <div class="form-group"><label>Admin Email *</label><input id="nt-email" type="email" placeholder="owner@apexdental.com"></div>
-    <div class="form-group"><label>Password *</label><input id="nt-password" type="password" placeholder="min 8 characters"></div>
-    <div class="form-group"><label>Outbound Number (E.164)</label><input id="nt-outbound" placeholder="+918071582020"></div>
-    <div class="form-group"><label>Transfer Number (E.164)</label><input id="nt-transfer" placeholder="+918071582020"></div>
+    <div class="settings-row">
+      <div class="form-group"><label>Business Name *</label><input id="nt-name" placeholder="Apex Dental Clinic"></div>
+      <div class="form-group"><label>Slug * (URL-safe)</label><input id="nt-slug" placeholder="apex-dental"></div>
+    </div>
+    <div class="settings-row">
+      <div class="form-group"><label>Admin Email *</label><input id="nt-email" type="email" placeholder="owner@apexdental.com"></div>
+      <div class="form-group"><label>Password *</label><input id="nt-password" type="password" placeholder="min 8 characters"></div>
+    </div>
+    <div class="settings-row">
+      <div class="form-group"><label>Outbound Number (E.164)</label><input id="nt-outbound" placeholder="+918071582020"></div>
+      <div class="form-group"><label>Transfer Number (E.164)</label><input id="nt-transfer" placeholder="+918071582020"></div>
+    </div>
     <div class="form-group"><label>Daily Call Cap</label><input id="nt-cap" type="number" value="500"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('new-tenant-modal')">Cancel</button>
@@ -325,14 +618,17 @@
   <div class="modal">
     <h3>Edit Tenant</h3>
     <input type="hidden" id="et-id">
+    <div class="form-group"><label>Tenant Name</label><input id="et-name" placeholder="Business name"></div>
     <div class="form-group"><label>Status</label>
       <select id="et-status">
         <option value="active">Active</option>
         <option value="suspended">Suspended</option>
       </select>
     </div>
-    <div class="form-group"><label>Outbound Number (E.164)</label><input id="et-outbound" placeholder="+918071582020"></div>
-    <div class="form-group"><label>Transfer Number (E.164)</label><input id="et-transfer" placeholder="+918071582020"></div>
+    <div class="settings-row">
+      <div class="form-group"><label>Outbound Number (E.164)</label><input id="et-outbound" placeholder="+918071582020"></div>
+      <div class="form-group"><label>Transfer Number (E.164)</label><input id="et-transfer" placeholder="+918071582020"></div>
+    </div>
     <div class="form-group"><label>Daily Call Cap</label><input id="et-cap" type="number"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('edit-tenant-modal')">Cancel</button>
@@ -341,6 +637,25 @@
   </div>
 </div>
 
+<!-- Add user modal -->
+<div class="modal-backdrop" id="add-user-modal">
+  <div class="modal" style="width:420px">
+    <h3>Add User to Tenant</h3>
+    <input type="hidden" id="au-org-id">
+    <div class="form-group"><label>Email *</label><input id="au-email" type="email" placeholder="user@company.com"></div>
+    <div class="form-group"><label>Password *</label><input id="au-password" type="password" placeholder="min 8 characters"></div>
+    <div class="form-group"><label>Role</label>
+      <select id="au-role">
+        <option value="owner">Owner</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('add-user-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addUser()">Create User</button>
+    </div>
+  </div>
+</div>
 
 <!-- Reset password modal -->
 <div class="modal-backdrop" id="reset-modal">
@@ -388,17 +703,79 @@
 <script>
 const API = '';
 
+// ── Audit Log (client-side, sessionStorage) ──────────────────────────────────
+function auditLog(action, target, detail) {
+  const entries = JSON.parse(sessionStorage.getItem('audit_log') || '[]');
+  entries.unshift({ action, target: target || '', detail: detail || '', ts: new Date().toISOString(), who: 'platform_admin' });
+  if (entries.length > 500) entries.length = 500;
+  sessionStorage.setItem('audit_log', JSON.stringify(entries));
+}
+
+function renderAudit() {
+  const filter = document.getElementById('audit-action-filter').value;
+  let entries = JSON.parse(sessionStorage.getItem('audit_log') || '[]');
+  if (filter) entries = entries.filter(e => e.action === filter);
+  const container = document.getElementById('audit-container');
+  document.getElementById('audit-count').textContent = `${entries.length} entries`;
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty">No audit entries yet. Admin actions will appear here.</div>';
+    return;
+  }
+  container.innerHTML = entries.map(e => `
+    <div class="audit-row">
+      <div class="audit-time">${fmtDate(e.ts)}</div>
+      <div>
+        <div class="audit-action"><strong>${esc(e.action.replace(/_/g,' '))}</strong>${e.target ? ` — <span class="audit-target">${esc(e.target)}</span>` : ''}</div>
+        ${e.detail ? `<div style="font-size:12px;color:var(--text3);margin-top:2px">${esc(e.detail)}</div>` : ''}
+        <div class="audit-who">by ${esc(e.who)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function clearAudit() {
+  if (!confirm('Clear audit log for this session?')) return;
+  sessionStorage.removeItem('audit_log');
+  renderAudit();
+}
+
+function exportAudit() {
+  const entries = JSON.parse(sessionStorage.getItem('audit_log') || '[]');
+  const csv = ['Time,Action,Target,Detail,Who', ...entries.map(e =>
+    [e.ts, e.action, e.target, e.detail, e.who].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(',')
+  )].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = 'audit_log.csv';
+  a.click();
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _allTenants = [];
+let _allCampaigns = [];
+let _drilldownOrgId = null;
+let _drilldownPage = 1;
+const DRILLDOWN_LIMIT = 25;
+let _callsChart = null;
+let _bookingChart = null;
+
 // ── Navigation ────────────────────────────────────────────────────────────────
-function nav(id) {
+function nav(id, el) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('s-' + id).classList.add('active');
-  event.currentTarget.classList.add('active');
+  if (el) el.classList.add('active');
   const loaders = {
-    'overview': loadOverview,
-    'users':    () => { populateOrgFilter(); loadUsers(); },
-    'tenants':  loadTenants,
-    'support':  loadTickets,
+    'overview':  loadOverview,
+    'health':    loadHealth,
+    'audit':     renderAudit,
+    'users':     () => { populateOrgFilter(); loadUsers(); },
+    'tenants':   loadTenants,
+    'campaigns': loadCampaigns,
+    'quota':     loadQuota,
+    'support':   loadTickets,
+    'errors':    () => { populateErrorTenantFilter(); loadErrors(); },
+    'settings':  loadSettings,
   };
   if (loaders[id]) loaders[id]();
 }
@@ -424,32 +801,40 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
 function fmtDur(sec) {
   if (!sec) return '—';
-  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  const m = Math.floor(sec/60), s = Math.round(sec%60);
   return m ? `${m}m ${s}s` : `${s}s`;
 }
-
 function fmtDate(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
-
 function outcomeBadge(o) {
-  const map = { booked:'badge-green', not_interested:'badge-red', voicemail:'badge-yellow',
-    wrong_number:'badge-gray', no_answer:'badge-gray', callback_requested:'badge-blue' };
+  const map = { booked:'badge-green', not_interested:'badge-red', voicemail:'badge-yellow', wrong_number:'badge-gray', no_answer:'badge-gray', callback_requested:'badge-blue' };
   return `<span class="badge ${map[o]||'badge-gray'}">${esc(o||'—')}</span>`;
 }
-
 function priorityBadge(p) {
   const map = { high:'badge-red', normal:'badge-yellow', low:'badge-green' };
   return `<span class="badge ${map[p]||'badge-gray'}">${esc(p)}</span>`;
 }
-
 function statusBadge(s) {
-  const map = { open:'badge-red', in_progress:'badge-yellow', resolved:'badge-green', active:'badge-green', suspended:'badge-red' };
+  const map = { open:'badge-red', in_progress:'badge-yellow', resolved:'badge-green', active:'badge-green', suspended:'badge-red', completed:'badge-gray', paused:'badge-yellow' };
   return `<span class="badge ${map[s]||'badge-gray'}">${esc(s)}</span>`;
+}
+
+// Tenant onboarding health check
+function onboardingHealth(t) {
+  const checks = [
+    { label: 'Outbound #', ok: !!t.outbound_number },
+    { label: 'Has calls', ok: t.total_calls > 0 },
+    { label: 'Users', ok: t.user_count > 0 },
+  ];
+  const allOk = checks.every(c => c.ok);
+  const anyFail = checks.some(c => !c.ok);
+  const cls = allOk ? 'onboard-ok' : anyFail ? 'onboard-warn' : 'onboard-err';
+  const tip = checks.map(c => (c.ok ? '✓' : '✗') + ' ' + c.label).join(' | ');
+  return `<span title="${tip}" style="cursor:help"><span class="onboard-dot ${cls}"></span><span style="font-size:11px;color:var(--text3)">${allOk ? 'Ready' : 'Incomplete'}</span></span>`;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -464,14 +849,12 @@ async function handleLogin(e) {
   errEl.style.display = 'none';
   try {
     const r = await fetch('/api/auth/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email, password }),
     });
     if (!r.ok) throw new Error((await r.json()).detail || 'Login failed');
     const data = await r.json();
-    if (data.role !== 'platform_admin') {
-      throw new Error('Access denied — platform admin account required.');
-    }
+    if (data.role !== 'platform_admin') throw new Error('Access denied — platform admin account required.');
     hideLogin();
     loadOverview();
   } catch (err) {
@@ -482,7 +865,7 @@ async function handleLogin(e) {
 }
 
 async function handleLogout() {
-  try { await fetch('/api/auth/logout', { method: 'POST' }); } catch(e) {}
+  try { await fetch('/api/auth/logout', { method:'POST' }); } catch(e) {}
   showLogin();
 }
 
@@ -500,10 +883,13 @@ async function bootstrap() {
 // ── OVERVIEW ──────────────────────────────────────────────────────────────────
 async function loadOverview() {
   try {
-    const [stats, tickets] = await Promise.all([
+    const [stats, tickets, campaigns] = await Promise.all([
       api('/api/admin/stats'),
       api('/api/admin/support/tickets?status=open').catch(() => []),
+      api('/api/admin/campaigns').catch(() => []),
     ]);
+
+    _allTenants = stats.tenants || [];
 
     document.getElementById('ov-tenants').textContent = stats.total_tenants;
     document.getElementById('ov-active-tenants').textContent = `${stats.active_tenants} active`;
@@ -514,121 +900,224 @@ async function loadOverview() {
     const openCount = tickets.length;
     document.getElementById('ov-open-tickets').textContent = openCount;
     const badge = document.getElementById('open-ticket-count');
-    if (openCount > 0) {
-      badge.textContent = openCount;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    if (openCount > 0) { badge.textContent = openCount; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+    if (stats.total_errors_today > 0) document.getElementById('error-badge').style.display = 'inline';
 
-    const tbody = document.getElementById('overview-tenants-tbody');
-    if (!stats.tenants.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No tenants yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = stats.tenants.map(t => `
-      <tr>
-        <td><strong>${esc(t.name)}</strong><br><span style="color:var(--text3);font-size:11px">${esc(t.slug)}</span></td>
-        <td>${statusBadge(t.status)}</td>
-        <td>${t.total_calls}</td>
-        <td style="color:var(--success)">${t.booked}</td>
-        <td style="color:var(--primary)">${t.booking_rate}%</td>
-        <td>${fmtDur(t.avg_duration)}</td>
-        <td>${t.user_count}</td>
-        <td>
-          <button class="btn btn-ghost btn-sm" onclick="navAndDrilldown('${esc(t.id)}','${esc(t.name)}')">View Calls</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
-        </td>
-      </tr>
-    `).join('');
+    const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
+    document.getElementById('ov-active-campaigns').textContent = activeCampaigns;
+
+    // Render tenant table
+    renderOverviewTenants();
+
+    // Charts
+    renderCharts(stats.tenants || []);
+
   } catch(e) { toast('Failed to load overview: ' + e.message, false); }
+}
+
+function renderOverviewTenants() {
+  const search = (document.getElementById('overview-search')?.value || '').toLowerCase();
+  let list = _allTenants;
+  if (search) list = list.filter(t => t.name.toLowerCase().includes(search) || t.slug.toLowerCase().includes(search));
+  const tbody = document.getElementById('overview-tenants-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">No tenants found</td></tr>'; return;
+  }
+  tbody.innerHTML = list.map(t => `
+    <tr>
+      <td><strong>${esc(t.name)}</strong><br><span style="color:var(--text3);font-size:11px">${esc(t.slug)}</span></td>
+      <td>${statusBadge(t.status)}</td>
+      <td>${t.total_calls}</td>
+      <td style="color:var(--success)">${t.booked}</td>
+      <td style="color:var(--primary)">${t.booking_rate}%</td>
+      <td>${fmtDur(t.avg_duration)}</td>
+      <td>${onboardingHealth(t)}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="navAndDrilldown('${esc(t.id)}','${esc(t.name)}')">Calls</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.name)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterOverviewTenants() { renderOverviewTenants(); }
+
+function renderCharts(tenants) {
+  if (!tenants.length) return;
+  const names = tenants.map(t => t.name.length > 12 ? t.name.slice(0,12)+'…' : t.name);
+  const calls = tenants.map(t => t.total_calls || 0);
+  const rates = tenants.map(t => parseFloat(t.booking_rate) || 0);
+  const colors = ['#6366f1','#22c55e','#f59e0b','#ef4444','#06b6d4','#a855f7','#f97316','#84cc16'];
+
+  const callsCtx = document.getElementById('chart-calls');
+  const bookCtx = document.getElementById('chart-booking');
+  if (!callsCtx || !bookCtx) return;
+
+  if (_callsChart) _callsChart.destroy();
+  if (_bookingChart) _bookingChart.destroy();
+
+  const chartDefaults = { color: '#94a3b8', borderColor: '#2e3250', backgroundColor: 'transparent' };
+
+  _callsChart = new Chart(callsCtx, {
+    type: 'bar',
+    data: {
+      labels: names,
+      datasets: [{ label: 'Total Calls', data: calls, backgroundColor: colors, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#2e3250' } },
+        y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { color: '#2e3250' } }
+      }
+    }
+  });
+
+  _bookingChart = new Chart(bookCtx, {
+    type: 'doughnut',
+    data: {
+      labels: names,
+      datasets: [{ data: rates, backgroundColor: colors, borderWidth: 0 }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 8, boxWidth: 10 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}%` } }
+      }
+    }
+  });
+}
+
+// ── HEALTH ────────────────────────────────────────────────────────────────────
+async function loadHealth() {
+  try {
+    const h = await api('/api/health');
+    const isOk = h.status === 'ok';
+    const schedulerOk = h.scheduler === 'running';
+    document.getElementById('hv-status').textContent = h.status;
+    document.getElementById('hd-status').className = 'health-dot ' + (isOk ? 'ok' : 'warn');
+    document.getElementById('hv-scheduler').textContent = h.scheduler;
+    document.getElementById('hd-scheduler').className = 'health-dot ' + (schedulerOk ? 'ok' : 'err');
+    document.getElementById('hv-version').textContent = h.version || '—';
+    document.getElementById('hv-uptime').textContent = h.uptime || '—';
+    document.getElementById('health-timestamp').textContent = 'Last checked: ' + new Date().toLocaleTimeString();
+    if (!schedulerOk) toast('⚠️ Scheduler is not running! Campaigns may be stalled.', false);
+  } catch(e) { toast('Health check failed: ' + e.message, false); }
 }
 
 // ── TENANTS ───────────────────────────────────────────────────────────────────
 async function loadTenants() {
   try {
     const stats = await api('/api/admin/stats');
-    const tbody = document.getElementById('tenants-tbody');
-    if (!stats.tenants.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="empty">No tenants yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = stats.tenants.map(t => `
-      <tr>
-        <td><strong>${esc(t.name)}</strong></td>
-        <td style="color:var(--text3)">${esc(t.slug)}</td>
-        <td>${statusBadge(t.status)}</td>
-        <td style="font-family:monospace;font-size:12px">${esc(t.outbound_number || '—')}</td>
-        <td>${t.max_calls_per_day}/day</td>
-        <td>${t.total_calls}</td>
-        <td style="color:var(--text3);font-size:12px">${fmtDate(t.created_at)}</td>
-        <td style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="drilldown('${esc(t.id)}','${esc(t.name)}')">Calls</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
-          ${t.status === 'active'
-            ? `<button class="btn btn-danger btn-sm" onclick="toggleTenant('${esc(t.id)}','suspended')">Suspend</button>`
-            : `<button class="btn btn-success btn-sm" onclick="toggleTenant('${esc(t.id)}','active')">Activate</button>`}
-        </td>
-      </tr>
-    `).join('');
+    _allTenants = stats.tenants || [];
+    renderTenants();
   } catch(e) { toast('Failed to load tenants: ' + e.message, false); }
 }
 
-async function drilldown(orgId, name) {
+function renderTenants() {
+  const search = (document.getElementById('tenant-search')?.value || '').toLowerCase();
+  let list = _allTenants;
+  if (search) list = list.filter(t => t.name.toLowerCase().includes(search) || t.slug.toLowerCase().includes(search));
+  const tbody = document.getElementById('tenants-tbody');
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No tenants found</td></tr>'; return;
+  }
+  tbody.innerHTML = list.map(t => `
+    <tr>
+      <td><strong>${esc(t.name)}</strong></td>
+      <td style="color:var(--text3)">${esc(t.slug)}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td style="font-family:monospace;font-size:12px">${esc(t.outbound_number||'—')}</td>
+      <td>${t.max_calls_per_day}/day</td>
+      <td>${t.total_calls}</td>
+      <td>${onboardingHealth(t)}</td>
+      <td style="color:var(--text3);font-size:12px">${fmtDate(t.created_at)}</td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" onclick="drilldown('${esc(t.id)}','${esc(t.name)}',1)">Calls</button>
+        <button class="btn btn-ghost btn-sm" onclick="openEditTenant('${esc(t.id)}','${esc(t.name)}','${esc(t.status)}','${esc(t.outbound_number||'')}','${esc(t.transfer_number||'')}','${t.max_calls_per_day}')">Edit</button>
+        ${t.status==='active'
+          ? `<button class="btn btn-danger btn-sm" onclick="toggleTenant('${esc(t.id)}','${esc(t.name)}','suspended')">Suspend</button>`
+          : `<button class="btn btn-success btn-sm" onclick="toggleTenant('${esc(t.id)}','${esc(t.name)}','active')">Activate</button>`}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterTenants() { renderTenants(); }
+
+async function drilldown(orgId, name, page = 1) {
+  _drilldownOrgId = orgId;
+  _drilldownPage = page;
   const panel = document.getElementById('tenant-drilldown');
   document.getElementById('drilldown-title').textContent = `Recent Calls — ${name}`;
+  document.getElementById('drilldown-export-btn').dataset.orgId = orgId;
   panel.style.display = 'block';
   panel.scrollIntoView({ behavior: 'smooth' });
   const tbody = document.getElementById('drilldown-tbody');
   tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
   try {
-    const calls = await api(`/api/admin/tenants/${orgId}/calls?limit=50`);
-    if (!calls.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">No calls yet</td></tr>';
-      return;
-    }
-    tbody.innerHTML = calls.map(c => `
+    const calls = await api(`/api/admin/tenants/${orgId}/calls?limit=${DRILLDOWN_LIMIT + 1}`);
+    const hasMore = calls.length > DRILLDOWN_LIMIT;
+    const slice = calls.slice(0, DRILLDOWN_LIMIT);
+    const pagination = document.getElementById('drilldown-pagination');
+    const pageInfo = document.getElementById('drilldown-page-info');
+    if (page > 1 || hasMore) {
+      pagination.style.display = 'flex';
+      pageInfo.textContent = `Page ${page}`;
+      const btns = pagination.querySelectorAll('button');
+      btns[0].disabled = page <= 1;
+      btns[1].disabled = !hasMore;
+    } else pagination.style.display = 'none';
+
+    if (!slice.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No calls yet</td></tr>'; return; }
+    tbody.innerHTML = slice.map(c => `
       <tr>
         <td style="font-family:monospace;font-size:12px">${esc(c.phone_number)}</td>
-        <td>${esc(c.lead_name || '—')}</td>
+        <td>${esc(c.lead_name||'—')}</td>
         <td>${outcomeBadge(c.outcome)}</td>
         <td>${fmtDur(c.duration_seconds)}</td>
         <td style="color:var(--text3);font-size:12px">${fmtDate(c.timestamp)}</td>
-        <td style="color:var(--text3);font-size:12px">${esc(c.notes || '—')}</td>
+        <td style="color:var(--text3);font-size:12px">${esc(c.notes||'—')}</td>
       </tr>
     `).join('');
   } catch(e) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Error: ${esc(e.message)}</td></tr>`; }
 }
 
+function drilldownPage(delta) {
+  if (_drilldownOrgId) {
+    const name = document.getElementById('drilldown-title').textContent.replace('Recent Calls — ','');
+    drilldown(_drilldownOrgId, name, Math.max(1, _drilldownPage + delta));
+  }
+}
+
+function exportTenantCalls() {
+  const orgId = document.getElementById('drilldown-export-btn').dataset.orgId;
+  if (orgId) window.location.href = `/api/admin/tenants/${orgId}/calls/export`;
+}
+
 function openNewTenantModal() { openModal('new-tenant-modal'); }
 
 async function createTenant() {
-  const name     = document.getElementById('nt-name').value.trim();
-  const slug     = document.getElementById('nt-slug').value.trim();
-  const email    = document.getElementById('nt-email').value.trim();
-  const password = document.getElementById('nt-password').value;
-  const outbound = document.getElementById('nt-outbound').value.trim();
-  const transfer = document.getElementById('nt-transfer').value.trim();
-  const cap      = parseInt(document.getElementById('nt-cap').value) || 500;
-
-  if (!name || !slug || !email || !password) { toast('Name, slug, email and password are required', false); return; }
+  const name=document.getElementById('nt-name').value.trim(), slug=document.getElementById('nt-slug').value.trim();
+  const email=document.getElementById('nt-email').value.trim(), password=document.getElementById('nt-password').value;
+  const outbound=document.getElementById('nt-outbound').value.trim(), transfer=document.getElementById('nt-transfer').value.trim();
+  const cap=parseInt(document.getElementById('nt-cap').value)||500;
+  if (!name||!slug||!email||!password) { toast('Name, slug, email and password are required', false); return; }
   try {
-    const org = await api('/api/admin/organizations', {
-      method: 'POST',
-      body: JSON.stringify({ name, slug, outbound_number: outbound || null, transfer_number: transfer || null, max_calls_per_day: cap }),
-    });
-    await api('/api/admin/users', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, org_id: org.id, role: 'owner' }),
-    });
+    const org = await api('/api/admin/organizations', { method:'POST', body: JSON.stringify({ name, slug, outbound_number: outbound||null, transfer_number: transfer||null, max_calls_per_day: cap }) });
+    await api('/api/admin/users', { method:'POST', body: JSON.stringify({ email, password, org_id: org.id, role:'owner' }) });
+    auditLog('tenant_created', name, `slug=${slug}, email=${email}`);
     toast(`Tenant "${name}" created`);
     closeModal('new-tenant-modal');
-    loadTenants();
+    loadTenants(); loadOverview();
   } catch(e) { toast('Failed: ' + e.message, false); }
 }
 
-function openEditTenant(id, status, outbound, transfer, cap) {
+function openEditTenant(id, name, status, outbound, transfer, cap) {
   document.getElementById('et-id').value = id;
+  document.getElementById('et-name').value = name;
   document.getElementById('et-status').value = status;
   document.getElementById('et-outbound').value = outbound;
   document.getElementById('et-transfer').value = transfer;
@@ -638,35 +1127,282 @@ function openEditTenant(id, status, outbound, transfer, cap) {
 
 async function saveTenant() {
   const id = document.getElementById('et-id').value;
+  const newName = document.getElementById('et-name').value.trim();
   try {
     await api(`/api/admin/organizations/${id}`, {
-      method: 'PATCH',
+      method:'PATCH',
       body: JSON.stringify({
-        status:          document.getElementById('et-status').value,
+        name: newName || undefined,
+        status: document.getElementById('et-status').value,
         outbound_number: document.getElementById('et-outbound').value.trim() || null,
         transfer_number: document.getElementById('et-transfer').value.trim() || null,
-        max_calls_per_day: parseInt(document.getElementById('et-cap').value) || 500,
+        max_calls_per_day: parseInt(document.getElementById('et-cap').value)||500,
       }),
     });
+    auditLog('tenant_updated', newName, `id=${id}`);
     toast('Tenant updated');
     closeModal('edit-tenant-modal');
-    loadTenants();
-    loadOverview();
+    loadTenants(); loadOverview();
   } catch(e) { toast('Failed: ' + e.message, false); }
 }
 
-async function toggleTenant(id, newStatus) {
+async function toggleTenant(id, name, newStatus) {
   const label = newStatus === 'suspended' ? 'suspend' : 'activate';
-  if (!confirm(`Are you sure you want to ${label} this tenant?`)) return;
+  if (!confirm(`Are you sure you want to ${label} "${name}"?`)) return;
   try {
-    await api(`/api/admin/organizations/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: newStatus }),
-    });
+    await api(`/api/admin/organizations/${id}`, { method:'PATCH', body: JSON.stringify({ status: newStatus }) });
+    auditLog(newStatus === 'suspended' ? 'tenant_suspended' : 'tenant_activated', name, `id=${id}`);
     toast(`Tenant ${label}d`);
-    loadTenants();
-    loadOverview();
+    loadTenants(); loadOverview();
   } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+function navAndDrilldown(id, name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('s-tenants').classList.add('active');
+  document.querySelector('[data-section="tenants"]').classList.add('active');
+  loadTenants().then(() => drilldown(id, name, 1));
+}
+
+// ── USERS ─────────────────────────────────────────────────────────────────────
+async function populateOrgFilter() {
+  try {
+    const stats = await api('/api/admin/stats');
+    _allTenants = stats.tenants || [];
+    const sel = document.getElementById('users-org-filter');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Select a tenant…</option>' + stats.tenants.map(t =>
+      `<option value="${esc(t.id)}">${esc(t.name)}</option>`
+    ).join('');
+    if (cur) sel.value = cur;
+  } catch(e) {}
+}
+
+async function loadUsers() {
+  const orgId = document.getElementById('users-org-filter').value;
+  const addBtn = document.getElementById('add-user-btn');
+  const profilesCard = document.getElementById('tenant-profiles-card');
+  if (!orgId) {
+    document.getElementById('users-tbody').innerHTML = '<tr><td colspan="5" class="empty">Select a tenant above</td></tr>';
+    document.getElementById('quota-card').style.display = 'none';
+    document.getElementById('errors-container').innerHTML = '';
+    profilesCard.style.display = 'none';
+    addBtn.style.display = 'none';
+    return;
+  }
+  addBtn.style.display = 'inline-flex';
+  addBtn.onclick = () => openAddUserModal(orgId);
+
+  try {
+    const [users, quota, errors] = await Promise.all([
+      api(`/api/admin/tenants/${orgId}/users`),
+      api(`/api/admin/tenants/${orgId}/quota`),
+      api(`/api/admin/tenants/${orgId}/errors?limit=20`),
+    ]);
+
+    // Quota card
+    const qcard = document.getElementById('quota-card');
+    qcard.style.display = 'block';
+    document.getElementById('quota-used').textContent = quota.used;
+    document.getElementById('quota-cap').textContent = quota.cap;
+    const pct = quota.cap ? Math.min(100, Math.round(quota.used / quota.cap * 100)) : 0;
+    document.getElementById('quota-bar').style.width = pct + '%';
+    document.getElementById('quota-bar').style.background = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--primary)';
+    document.getElementById('quota-pct').textContent = pct + '%';
+
+    // Agent profiles for this tenant (best effort)
+    try {
+      // We call the tenant's agent-profiles endpoint via admin context isn't available,
+      // so we show a note about checking the tenant dashboard
+      profilesCard.style.display = 'block';
+      document.getElementById('tenant-profiles-list').innerHTML =
+        `<span style="font-size:12px;color:var(--text3)">View agent profiles in the tenant dashboard. Quota usage: <strong style="color:${pct>80?'var(--danger)':'var(--success)'}">${pct}%</strong> of daily cap today.</span>`;
+    } catch(e2) { profilesCard.style.display = 'none'; }
+
+    // Users table
+    const tbody = document.getElementById('users-tbody');
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No users yet</td></tr>';
+    } else {
+      tbody.innerHTML = users.map(u => `
+        <tr>
+          <td>${esc(u.email)}</td>
+          <td><span class="badge badge-blue">${esc(u.role)}</span></td>
+          <td>${u.is_active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Disabled</span>'}</td>
+          <td style="color:var(--text3);font-size:12px">${fmtDate(u.last_login_at)}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="openResetModal('${esc(u.id)}','${esc(orgId)}')">Reset PW</button>
+            <button class="btn btn-${u.is_active?'danger':'success'} btn-sm" onclick="toggleUser('${esc(u.id)}','${esc(orgId)}','${esc(u.email)}')">
+              ${u.is_active ? 'Disable' : 'Enable'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Errors
+    const errTitle = document.getElementById('errors-title');
+    const errContainer = document.getElementById('errors-container');
+    if (errors.length) {
+      errTitle.style.display = 'block';
+      errContainer.innerHTML = errors.slice(0,10).map(e => `
+        <div class="error-row level-${e.level||'error'}">
+          <div class="error-meta"><span>${esc(e.source)}</span><span>${fmtDate(e.timestamp)}</span></div>
+          <div class="error-msg">${esc(e.message)}</div>
+          ${e.detail ? `<div class="error-detail">${esc(e.detail)}</div>` : ''}
+        </div>
+      `).join('');
+    } else {
+      errTitle.style.display = 'none';
+      errContainer.innerHTML = '';
+    }
+  } catch(e) { toast('Failed to load users: ' + e.message, false); }
+}
+
+function openResetModal(userId, orgId) {
+  document.getElementById('reset-user-id').value = userId;
+  document.getElementById('reset-org-id').value = orgId;
+  document.getElementById('reset-password').value = '';
+  openModal('reset-modal');
+}
+
+async function doResetPassword() {
+  const userId = document.getElementById('reset-user-id').value;
+  const orgId = document.getElementById('reset-org-id').value;
+  const password = document.getElementById('reset-password').value;
+  if (!password || password.length < 8) { toast('Password must be at least 8 characters', false); return; }
+  try {
+    await api(`/api/admin/tenants/${orgId}/users/${userId}/reset-password`, { method:'POST', body: JSON.stringify({ password }) });
+    auditLog('password_reset', `user ${userId}`, `org=${orgId}`);
+    toast('Password reset successfully');
+    closeModal('reset-modal');
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+async function toggleUser(userId, orgId, email) {
+  try {
+    const r = await api(`/api/admin/tenants/${orgId}/users/${userId}/toggle`, { method:'POST' });
+    auditLog('user_toggled', email, `active=${r.is_active}, org=${orgId}`);
+    toast(r.is_active ? 'User enabled' : 'User disabled');
+    loadUsers();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+function openAddUserModal(orgId) {
+  const resolvedOrgId = orgId || document.getElementById('users-org-filter').value;
+  if (!resolvedOrgId) { toast('Select a tenant first', false); return; }
+  document.getElementById('au-org-id').value = resolvedOrgId;
+  document.getElementById('au-email').value = '';
+  document.getElementById('au-password').value = '';
+  openModal('add-user-modal');
+}
+
+async function addUser() {
+  const orgId = document.getElementById('au-org-id').value;
+  const email = document.getElementById('au-email').value.trim();
+  const password = document.getElementById('au-password').value;
+  const role = document.getElementById('au-role').value;
+  if (!email || !password) { toast('Email and password are required', false); return; }
+  try {
+    await api('/api/admin/users', { method:'POST', body: JSON.stringify({ email, password, org_id: orgId, role }) });
+    auditLog('user_created', email, `role=${role}, org=${orgId}`);
+    toast('User created');
+    closeModal('add-user-modal');
+    loadUsers();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+// ── CAMPAIGNS ─────────────────────────────────────────────────────────────────
+async function loadCampaigns() {
+  try {
+    _allCampaigns = await api('/api/admin/campaigns');
+    filterCampaigns();
+  } catch(e) { toast('Failed to load campaigns: ' + e.message, false); }
+}
+
+function filterCampaigns() {
+  const filter = document.getElementById('campaign-status-filter').value;
+  const search = (document.getElementById('campaign-search').value || '').toLowerCase();
+  const tbody = document.getElementById('campaigns-tbody');
+  let list = _allCampaigns;
+  if (filter) list = list.filter(c => c.status === filter);
+  if (search) list = list.filter(c => c.name.toLowerCase().includes(search) || (c.org_name||'').toLowerCase().includes(search));
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No campaigns found</td></tr>'; return;
+  }
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td style="color:var(--text3);font-size:12px">${esc(c.org_name||'—')}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td style="font-size:12px">${esc(c.schedule_type)}${c.schedule_time?` @ ${esc(c.schedule_time)}`:''}</td>
+      <td style="color:var(--success)">${c.total_dispatched||0}</td>
+      <td style="color:var(--danger)">${c.total_failed||0}</td>
+      <td style="color:var(--text3);font-size:12px">${fmtDate(c.last_run_at)}</td>
+      <td style="color:var(--text3);font-size:12px">${fmtDate(c.created_at)}</td>
+      <td style="display:flex;gap:5px;flex-wrap:wrap">
+        ${c.status !== 'completed' ? `
+          ${c.status === 'active'
+            ? `<button class="btn btn-warning btn-sm" onclick="setCampaignStatus('${esc(c.id)}','${esc(c.name)}','paused')">Pause</button>`
+            : `<button class="btn btn-success btn-sm" onclick="setCampaignStatus('${esc(c.id)}','${esc(c.name)}','active')">Resume</button>`}
+        ` : '<span style="font-size:11px;color:var(--text3)">Completed</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function setCampaignStatus(id, name, status) {
+  try {
+    await api(`/api/admin/campaigns/${id}/status?status=${status}`, { method:'PATCH' });
+    auditLog(status === 'paused' ? 'campaign_paused' : 'campaign_resumed', name, `id=${id}`);
+    toast(`Campaign ${status}`);
+    loadCampaigns();
+  } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+// ── QUOTA MONITOR ─────────────────────────────────────────────────────────────
+async function loadQuota() {
+  const container = document.getElementById('quota-burn-container');
+  container.innerHTML = '<div class="empty">Loading…</div>';
+  document.getElementById('quota-timestamp').textContent = '';
+  try {
+    const stats = await api('/api/admin/stats');
+    const tenants = stats.tenants || [];
+    if (!tenants.length) { container.innerHTML = '<div class="empty">No tenants yet</div>'; return; }
+
+    const rows = await Promise.allSettled(
+      tenants.map(t => api(`/api/admin/tenants/${t.id}/quota`).then(q => ({ ...q, name: t.name, cap: t.max_calls_per_day })))
+    );
+
+    const quotas = rows
+      .filter(r => r.status === 'fulfilled')
+      .map(r => r.value)
+      .sort((a,b) => (b.used/b.cap) - (a.used/a.cap));
+
+    document.getElementById('quota-timestamp').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+    container.innerHTML = `
+      <div class="quota-burn">
+        <div class="quota-burn-header">Daily Call Quota — All Tenants</div>
+        <div class="quota-burn-grid">
+          ${quotas.map(q => {
+            const pct = q.cap ? Math.min(100, Math.round(q.used / q.cap * 100)) : 0;
+            const color = pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)';
+            return `
+              <div class="quota-burn-row">
+                <div class="quota-burn-name" title="${esc(q.name)}">${esc(q.name)}</div>
+                <div class="quota-burn-bar-wrap">
+                  <div class="quota-burn-bar-fill" style="width:${pct}%;background:${color}"></div>
+                </div>
+                <div class="quota-burn-val" style="color:${color}">${q.used} / ${q.cap} (${pct}%)</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  } catch(e) { container.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
 }
 
 // ── SUPPORT TICKETS ───────────────────────────────────────────────────────────
@@ -678,56 +1414,36 @@ async function loadTickets() {
     let url = '/api/admin/support/tickets';
     if (filter) url += `?status=${filter}`;
     const tickets = await api(url);
-
-    // Update badge
     const openTickets = tickets.filter(t => t.status === 'open');
     const badge = document.getElementById('open-ticket-count');
-    if (openTickets.length > 0) {
-      badge.textContent = openTickets.length;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
-
-    if (!tickets.length) {
-      container.innerHTML = '<div class="empty">No tickets found</div>';
-      return;
-    }
-
+    if (openTickets.length > 0) { badge.textContent = openTickets.length; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+    if (!tickets.length) { container.innerHTML = '<div class="empty">No tickets found</div>'; return; }
     container.innerHTML = tickets.map(t => `
       <div class="ticket-card">
         <div class="ticket-header">
           <div class="ticket-subject">${esc(t.subject)}</div>
-          ${priorityBadge(t.priority)}
-          ${statusBadge(t.status)}
+          ${priorityBadge(t.priority)} ${statusBadge(t.status)}
         </div>
-        <div class="ticket-meta">
-          From <strong>${esc(t.org_name)}</strong> · ${fmtDate(t.created_at)}
-          ${t.updated_at !== t.created_at ? ` · Updated ${fmtDate(t.updated_at)}` : ''}
-        </div>
+        <div class="ticket-meta">From <strong>${esc(t.org_name)}</strong> · ${fmtDate(t.created_at)}${t.updated_at!==t.created_at?` · Updated ${fmtDate(t.updated_at)}`:''}</div>
         <div class="ticket-message">${esc(t.message)}</div>
-        ${t.admin_note ? `<div class="ticket-admin-note">📝 Admin note: ${esc(t.admin_note)}</div>` : ''}
+        ${t.admin_note?`<div class="ticket-admin-note">📝 Admin note: ${esc(t.admin_note)}</div>`:''}
         <div class="ticket-actions">
-          ${t.status !== 'resolved' ? `
-            <button class="btn btn-success btn-sm" onclick="quickResolve('${t.id}')">✓ Mark Resolved</button>
-            <button class="btn btn-warning btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Update + Note</button>
-          ` : `
-            <button class="btn btn-ghost btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Reopen / Edit</button>
-          `}
+          ${t.status!=='resolved'
+            ? `<button class="btn btn-success btn-sm" onclick="quickResolve('${t.id}','${esc(t.subject)}')">✓ Mark Resolved</button>
+               <button class="btn btn-warning btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Update + Note</button>`
+            : `<button class="btn btn-ghost btn-sm" onclick="openResolveModal('${t.id}','${t.status}')">Reopen / Edit</button>`}
         </div>
       </div>
     `).join('');
   } catch(e) { container.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
 }
 
-async function quickResolve(id) {
+async function quickResolve(id, subject) {
   try {
-    await api(`/api/admin/support/tickets/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'resolved' }),
-    });
-    toast('Ticket resolved');
-    loadTickets();
+    await api(`/api/admin/support/tickets/${id}`, { method:'PATCH', body: JSON.stringify({ status:'resolved' }) });
+    auditLog('ticket_updated', subject, 'status=resolved');
+    toast('Ticket resolved'); loadTickets();
   } catch(e) { toast('Failed: ' + e.message, false); }
 }
 
@@ -740,18 +1456,94 @@ function openResolveModal(id, status) {
 
 async function saveTicketUpdate() {
   const id = document.getElementById('rm-id').value;
+  const newStatus = document.getElementById('rm-status').value;
   try {
     await api(`/api/admin/support/tickets/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        status:     document.getElementById('rm-status').value,
-        admin_note: document.getElementById('rm-note').value.trim() || null,
-      }),
+      method:'PATCH',
+      body: JSON.stringify({ status: newStatus, admin_note: document.getElementById('rm-note').value.trim()||null }),
     });
-    toast('Ticket updated');
-    closeModal('resolve-modal');
-    loadTickets();
+    auditLog('ticket_updated', `ticket ${id}`, `status=${newStatus}`);
+    toast('Ticket updated'); closeModal('resolve-modal'); loadTickets();
   } catch(e) { toast('Failed: ' + e.message, false); }
+}
+
+// ── ERROR LOGS ────────────────────────────────────────────────────────────────
+async function populateErrorTenantFilter() {
+  try {
+    const stats = await api('/api/admin/stats');
+    const sel = document.getElementById('error-tenant-filter');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">All tenants</option>' + stats.tenants.map(t =>
+      `<option value="${esc(t.id)}">${esc(t.name)}</option>`
+    ).join('');
+    if (cur) sel.value = cur;
+  } catch(e) {}
+}
+
+async function loadErrors() {
+  const level = document.getElementById('error-level-filter').value;
+  const tenantId = document.getElementById('error-tenant-filter').value;
+  const container = document.getElementById('errors-log-container');
+  container.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    let url = tenantId
+      ? `/api/admin/tenants/${tenantId}/errors?limit=100`
+      : `/api/admin/errors?limit=200${level?'&level='+level:''}`;
+    const errors = await api(url);
+    if (!errors.length) { container.innerHTML = '<div class="empty">No errors found — clean! ✓</div>'; return; }
+    container.innerHTML = errors.map(e => `
+      <div class="error-row level-${e.level||'error'}">
+        <div class="error-meta">
+          <span class="badge ${e.level==='error'?'badge-red':e.level==='warning'?'badge-yellow':'badge-blue'}" style="font-size:10px">${esc(e.level||'error')}</span>
+          <span>${esc(e.source)}</span>
+          ${e.org_id?`<span style="color:var(--primary);font-size:11px">${esc(e.org_id.slice(0,8))}…</span>`:''}
+          <span>${fmtDate(e.timestamp)}</span>
+        </div>
+        <div class="error-msg">${esc(e.message)}</div>
+        ${e.detail?`<div class="error-detail">${esc(e.detail)}</div>`:''}
+      </div>
+    `).join('');
+  } catch(e) { container.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const settings = await api('/api/settings');
+    for (const [key, meta] of Object.entries(settings)) {
+      const input = document.getElementById('st-' + key);
+      if (input) {
+        if (meta.value) input.value = meta.value;
+        const dot = document.getElementById('dot-' + key);
+        if (dot) {
+          dot.className = meta.configured ? 'configured-dot' : 'not-configured-dot';
+          dot.title = meta.configured ? 'Configured' : 'Not set';
+        }
+      }
+    }
+  } catch(e) { toast('Failed to load settings: ' + e.message, false); }
+}
+
+async function saveSettings() {
+  const keys = [
+    'LIVEKIT_URL','LIVEKIT_API_KEY','LIVEKIT_API_SECRET',
+    'GOOGLE_API_KEY','GEMINI_MODEL','GEMINI_TTS_VOICE','USE_GEMINI_REALTIME',
+    'VOBIZ_SIP_DOMAIN','VOBIZ_USERNAME','VOBIZ_PASSWORD','VOBIZ_OUTBOUND_NUMBER',
+    'OUTBOUND_TRUNK_ID','DEFAULT_TRANSFER_NUMBER',
+    'DEEPGRAM_API_KEY','TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_FROM_NUMBER',
+    'S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','S3_ENDPOINT_URL','S3_REGION','S3_BUCKET',
+  ];
+  const settings = {};
+  for (const k of keys) {
+    const el = document.getElementById('st-' + k);
+    if (el && el.value.trim()) settings[k] = el.value.trim();
+  }
+  try {
+    const r = await api('/api/settings', { method:'POST', body: JSON.stringify({ settings }) });
+    auditLog('settings_saved', 'Platform Settings', `keys=${Object.keys(settings).join(', ')}`);
+    toast(`Settings saved${r.ignored_keys?.length ? ` (${r.ignored_keys.length} ignored)` : ''}`);
+    loadSettings();
+  } catch(e) { toast('Failed to save settings: ' + e.message, false); }
 }
 
 // ── Modals ────────────────────────────────────────────────────────────────────
@@ -760,15 +1552,6 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 document.querySelectorAll('.modal-backdrop').forEach(b => {
   b.addEventListener('click', e => { if (e.target === b) b.classList.remove('open'); });
 });
-
-
-function navAndDrilldown(id, name) {
-  // Switch to tenants tab first, then drill down
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('s-tenants').classList.add('active');
-  loadTenants().then(() => drilldown(id, name));
-}
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 bootstrap();
