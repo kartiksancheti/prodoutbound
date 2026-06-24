@@ -1205,3 +1205,47 @@ async def vobiz_recording_webhook(request: Request):
             logger.error("📼 Failed to save recording URL: %s", e)
 
     return {"status": "ok"}
+
+# ── Vobiz Recording Proxy ─────────────────────────────────────────────────────
+@app.get("/api/recording/proxy")
+async def proxy_recording(url: str, user: CurrentUser = Depends(require_org_user)):
+    """Proxy Vobiz recording with auth headers so browser can play it."""
+    import httpx
+    auth_id    = os.getenv("VOBIZ_AUTH_ID", "")
+    auth_token = os.getenv("VOBIZ_AUTH_TOKEN", "")
+    if not auth_id or not auth_token:
+        raise HTTPException(503, "Recording credentials not configured")
+    if "vobiz.ai" not in url:
+        raise HTTPException(400, "Invalid recording URL")
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, headers={
+                "X-Auth-ID": auth_id,
+                "X-Auth-Token": auth_token,
+            }, timeout=30, follow_redirects=True)
+
+        # Convert stereo to mono so both voices are audible in browser
+        from fastapi.responses import Response
+        import io
+        try:
+            from pydub import AudioSegment
+            audio = AudioSegment.from_file(io.BytesIO(r.content))
+            if audio.channels > 1:
+                mono = audio.set_channels(1)
+                buf = io.BytesIO()
+                mono.export(buf, format="mp3")
+                return Response(
+                    content=buf.getvalue(),
+                    media_type="audio/mpeg",
+                    headers={"Content-Disposition": "inline"},
+                )
+        except Exception as conv_err:
+            logger.warning("Audio conversion failed, serving raw: %s", conv_err)
+
+        return Response(
+            content=r.content,
+            media_type=r.headers.get("content-type", "audio/wav"),
+            headers={"Content-Disposition": "inline"},
+        )
+    except Exception as e:
+        raise HTTPException(502, f"Failed to fetch recording: {e}")
