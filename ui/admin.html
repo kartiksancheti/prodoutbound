@@ -185,7 +185,10 @@
     </div>
     <form id="login-form" onsubmit="return handleLogin(event)">
       <div class="form-group"><label>Email</label><input id="login-email" type="email" required></div>
-      <div class="form-group"><label>Password</label><input id="login-password" type="password" required></div>
+      <div class="form-group"><label>Password</label><div style="position:relative">
+      <div style="position:relative"><input id="login-password" type="password" required style="width:100%;padding-right:40px"><button type="button" onclick="var i=document.getElementById('login-password');i.type=i.type==='password'?'text':'password';this.style.opacity=i.type==='text'?'0.5':'1'" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:2px;display:flex;align-items:center"><svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'/><circle cx='12' cy='12' r='3'/></svg></button></div>
+      
+    </div></div>
       <div id="login-error" class="login-error" style="display:none"></div>
       <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">Sign In as Admin</button>
     </form>
