@@ -1,16 +1,33 @@
+# Secrets — never track
 .env
-__pycache__/
-*.pyc
-*.pyo
-*.log
+.env.*
+.git-credentials
+.gitconfig
+KMS/
+
+# Caches / package data
 .pm2/
-*.egg-info/
 .local/
 .cache/
-agent_calls.log
+*.egg-info/
+node_modules/
+
+# System / shell noise
 .bash_history
 .bash_logout
 .bashrc
 .profile
-.gitconfig
+.lesshst
+.config/
+
+# App noise
+__pycache__/
+*.pyc
+*.pyo
+*.log
+agent_calls.log
+logs/
+backups/
 files.zip
+agent.py.bak.*
+patch_agent.py

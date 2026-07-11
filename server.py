@@ -829,6 +829,113 @@ async def single_call(req: SingleCallRequest, request: Request, user: CurrentUse
     return result
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Public demo (NXT Automation showcase landing page)
+# ══════════════════════════════════════════════════════════════════════════
+# Unauthenticated on purpose — this is what the public-facing demo landing
+# page calls. Hard-locked to ONE org + ONE agent profile via env vars, so it
+# can never be used to place calls through any other tenant. Both routes are
+# rate-limited per IP on top of that.
+#
+# Required env vars (.env):
+#   DEMO_ORG_ID             — org_id for the "NXT Automation" tenant
+#   DEMO_AGENT_PROFILE_ID   — agent_profiles.id for the NXT Automation profile
+#   DEMO_BUSINESS_NAME      — defaults to "NXT Automation"
+#   DEMO_SERVICE_TYPE       — defaults to "a live demo of the voice agent"
+#
+# Also add the landing page's domain to ALLOWED_ORIGINS if it's hosted
+# somewhere other than this server, e.g.:
+#   ALLOWED_ORIGINS=https://nxtautomation.com,https://www.nxtautomation.com
+
+DEMO_ORG_ID = os.getenv("DEMO_ORG_ID", "")
+DEMO_AGENT_PROFILE_ID = os.getenv("DEMO_AGENT_PROFILE_ID", "")
+DEMO_BUSINESS_NAME = os.getenv("DEMO_BUSINESS_NAME", "NXT Automation")
+DEMO_SERVICE_TYPE = os.getenv("DEMO_SERVICE_TYPE", "a live demo of the voice agent")
+
+
+class DemoCallRequest(BaseModel):
+    phone_number: str
+    lead_name: str = "there"
+
+
+class DemoTokenRequest(BaseModel):
+    name: str
+
+
+@app.post("/api/demo/call")
+@limiter.limit("3/minute")
+async def demo_call(req: DemoCallRequest, request: Request):
+    """Public 'call me' — dispatches a real outbound call to the visitor's phone."""
+    if not DEMO_ORG_ID:
+        raise HTTPException(503, "Demo isn't configured yet — set DEMO_ORG_ID.")
+    try:
+        phone = _validate_e164(req.phone_number)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    lead_name = (req.lead_name or "there").strip()[:60] or "there"
+
+    try:
+        await dispatch_call(
+            org_id=DEMO_ORG_ID,
+            phone_number=phone,
+            lead_name=lead_name,
+            business_name=DEMO_BUSINESS_NAME,
+            service_type=DEMO_SERVICE_TYPE,
+            agent_profile_id=DEMO_AGENT_PROFILE_ID or None,
+        )
+    except DispatchBlocked as exc:
+        raise HTTPException(_BLOCKED_STATUS.get(exc.code, 400), exc.message)
+
+    return {"success": True}
+
+
+@app.post("/api/demo/token")
+@limiter.limit("6/minute")
+async def demo_token(req: DemoTokenRequest, request: Request):
+    """Public 'push to talk' — browser mic <-> agent, live in a LiveKit room.
+    No phone_number in the dispatch metadata, so agent.py just joins the room
+    and waits instead of trying to SIP-dial anyone."""
+    if not DEMO_ORG_ID:
+        raise HTTPException(503, "Demo isn't configured yet — set DEMO_ORG_ID.")
+
+    name = (req.name or "Guest").strip()[:40] or "Guest"
+    room_name = f"demo-{uuid.uuid4().hex[:10]}"
+
+    from livekit import api as lk_api
+
+    metadata = {
+        "org_id": DEMO_ORG_ID,
+        "lead_name": name,
+        "business_name": DEMO_BUSINESS_NAME,
+        "service_type": DEMO_SERVICE_TYPE,
+    }
+    if DEMO_AGENT_PROFILE_ID:
+        metadata["agent_profile_id"] = DEMO_AGENT_PROFILE_ID
+
+    client = _lk()
+    try:
+        await client.agent_dispatch.create_dispatch(
+            lk_api.CreateAgentDispatchRequest(
+                agent_name="outbound-caller",
+                room=room_name,
+                metadata=json.dumps(metadata),
+            )
+        )
+    finally:
+        await client.aclose()
+
+    access_token = (
+        lk_api.AccessToken(os.getenv("LIVEKIT_API_KEY", ""), os.getenv("LIVEKIT_API_SECRET", ""))
+        .with_identity(f"web-{uuid.uuid4().hex[:8]}")
+        .with_name(name)
+        .with_grants(lk_api.VideoGrants(room_join=True, room=room_name))
+        .to_jwt()
+    )
+
+    return {"token": access_token, "url": os.getenv("LIVEKIT_URL", ""), "room": room_name}
+
+
 # ── Batch CSV call ────────────────────────────────────────────────────────────
 
 @app.post("/api/call/batch")
