@@ -293,64 +293,37 @@ async def _silence_watchdog(sip_hungup: asyncio.Event, ctx: agents.JobContext,
 # line out loud — without this, a browser demo session can hang open
 # indefinitely (LiveKit force-kills the job ~2 min later with no clean
 # end_call logged). Mirrors _silence_watchdog used for phone calls.
-BROWSER_SILENCE_TIMEOUT_SEC = 45
+BROWSER_SESSION_MAX_SEC = 210  # hard ceiling, not silence detection — generous enough for a real demo conversation
 
 
 async def _browser_silence_watchdog(done: asyncio.Event, ctx: agents.JobContext, tool_ctx) -> None:
-    logger.info("🔇 Browser silence watchdog started — %ds timeout", BROWSER_SILENCE_TIMEOUT_SEC)
-    state = {"last_audio_time": asyncio.get_event_loop().time()}
+    """
+    Bulletproof safety net for browser (push-to-talk) sessions only. Does
+    NOT touch phone/SIP calls in any way — this function is only ever
+    invoked from the "no phone" branch below. Uses asyncio.wait_for on the
+    session's own `done` event: no event listeners, nothing that can fail
+    to register, nothing that reads raw audio frames. If the session
+    hasn't ended on its own within BROWSER_SESSION_MAX_SEC, it gets
+    force-ended, unconditionally.
+    """
+    logger.info("🔇 Browser watchdog armed — hard cap %ds", BROWSER_SESSION_MAX_SEC)
+    try:
+        await asyncio.wait_for(done.wait(), timeout=BROWSER_SESSION_MAX_SEC)
+        return  # session already ended cleanly on its own
+    except asyncio.TimeoutError:
+        pass
 
-    from livekit import rtc
-
-    def _on_track_subscribed(track, publication, participant):
-        if not hasattr(track, "kind") or track.kind != rtc.TrackKind.KIND_AUDIO:
-            return
-
-        async def _consume():
-            try:
-                stream = rtc.AudioStream(track=track)
-                async for ev in stream:
-                    if done.is_set():
-                        break
-                    state["last_audio_time"] = asyncio.get_event_loop().time()
-            except Exception as e:
-                logger.warning("🔇 Browser watchdog audio stream error: %s", e)
-
-        asyncio.ensure_future(_consume())
-
-    ctx.room.on("track_subscribed", _on_track_subscribed)
-    for participant in ctx.room.remote_participants.values():
-        for pub in participant.track_publications.values():
-            if pub.track and hasattr(pub.track, "kind") and pub.track.kind == rtc.TrackKind.KIND_AUDIO:
-                async def _consume_existing(t=pub.track):
-                    try:
-                        stream = rtc.AudioStream(track=t)
-                        async for ev in stream:
-                            if done.is_set():
-                                break
-                            state["last_audio_time"] = asyncio.get_event_loop().time()
-                    except Exception as e:
-                        logger.warning("🔇 Browser watchdog existing audio error: %s", e)
-                asyncio.ensure_future(_consume_existing())
-
-    while not done.is_set():
-        await asyncio.sleep(2.0)
-        if done.is_set():
-            break
-        elapsed = asyncio.get_event_loop().time() - state["last_audio_time"]
-        if elapsed >= BROWSER_SILENCE_TIMEOUT_SEC:
-            logger.warning("🔇 %ds silence — force-ending browser session %s",
-                           BROWSER_SILENCE_TIMEOUT_SEC, ctx.room.name)
-            try:
-                await tool_ctx.end_call(outcome="no_answer", reason=f"{BROWSER_SILENCE_TIMEOUT_SEC}s silence, browser demo")
-            except Exception:
-                pass
-            try:
-                await ctx.room.disconnect()
-            except Exception:
-                pass
-            done.set()
-            return
+    logger.warning("🔇 %ds cap reached — force-ending browser session %s",
+                   BROWSER_SESSION_MAX_SEC, ctx.room.name)
+    try:
+        await tool_ctx.end_call(outcome="no_answer", reason=f"{BROWSER_SESSION_MAX_SEC}s cap reached, browser demo")
+    except Exception:
+        pass
+    try:
+        await ctx.room.disconnect()
+    except Exception:
+        pass
+    done.set()
 
 
 # ── FIX: LiveKit Egress recording to S3 ──────────────────────────────────────

@@ -842,6 +842,11 @@ async def single_call(req: SingleCallRequest, request: Request, user: CurrentUse
 #   DEMO_AGENT_PROFILE_ID   — agent_profiles.id for the NXT Automation profile
 #   DEMO_BUSINESS_NAME      — defaults to "NXT Automation"
 #   DEMO_SERVICE_TYPE       — defaults to "a live demo of the voice agent"
+#   TURNSTILE_SECRET_KEY    — secret key from your Cloudflare Turnstile widget
+#                             (the "Call me now" form on the demo page verifies
+#                             a Turnstile token here before any real SIP call
+#                             gets dispatched — protects against bot spam
+#                             running up real telephony costs)
 #
 # Also add the landing page's domain to ALLOWED_ORIGINS if it's hosted
 # somewhere other than this server, e.g.:
@@ -856,18 +861,58 @@ DEMO_SERVICE_TYPE = os.getenv("DEMO_SERVICE_TYPE", "a live demo of the voice age
 class DemoCallRequest(BaseModel):
     phone_number: str
     lead_name: str = "there"
+    turnstile_token: str = ""
 
 
 class DemoTokenRequest(BaseModel):
     name: str
 
 
+async def _verify_turnstile(token: str, remote_ip: str) -> bool:
+    """Calls Cloudflare's siteverify API. Returns True only if the token is
+    genuinely valid, unexpired (5 min window), and hasn't been used before.
+    The client-side widget alone protects nothing — anyone can send any
+    string as turnstile_token directly to this API without it. This is the
+    part that actually matters."""
+    secret = os.getenv("TURNSTILE_SECRET_KEY", "")
+    if not secret:
+        # Not configured yet — fail closed rather than silently letting
+        # everything through, so a missing env var is loud, not invisible.
+        logger.warning("TURNSTILE_SECRET_KEY not set — rejecting demo call.")
+        return False
+    if not token:
+        return False
+
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+                json={"secret": secret, "response": token, "remoteip": remote_ip},
+                timeout=5,
+            )
+        result = resp.json()
+        if not result.get("success"):
+            logger.warning("Turnstile verification failed: %s", result.get("error-codes"))
+        return bool(result.get("success"))
+    except Exception as e:
+        logger.warning("Turnstile verification request failed: %s", e)
+        return False
+
+
 @app.post("/api/demo/call")
 @limiter.limit("3/minute")
 async def demo_call(req: DemoCallRequest, request: Request):
-    """Public 'call me' — dispatches a real outbound call to the visitor's phone."""
+    """Public 'call me' — dispatches a real outbound call to the visitor's phone.
+    Guarded by Cloudflare Turnstile since every submission costs real SIP
+    telephony money regardless of whether the number is genuine."""
     if not DEMO_ORG_ID:
         raise HTTPException(503, "Demo isn't configured yet — set DEMO_ORG_ID.")
+
+    remote_ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    if not await _verify_turnstile(req.turnstile_token, remote_ip):
+        raise HTTPException(400, "Verification failed — please try again.")
+
     try:
         phone = _validate_e164(req.phone_number)
     except ValueError as exc:
@@ -895,7 +940,9 @@ async def demo_call(req: DemoCallRequest, request: Request):
 async def demo_token(req: DemoTokenRequest, request: Request):
     """Public 'push to talk' — browser mic <-> agent, live in a LiveKit room.
     No phone_number in the dispatch metadata, so agent.py just joins the room
-    and waits instead of trying to SIP-dial anyone."""
+    and waits instead of trying to SIP-dial anyone. No telephony cost per
+    session, so no Turnstile gate here — the browser-mic path is already
+    rate-limited and free regardless of who triggers it."""
     if not DEMO_ORG_ID:
         raise HTTPException(503, "Demo isn't configured yet — set DEMO_ORG_ID.")
 
