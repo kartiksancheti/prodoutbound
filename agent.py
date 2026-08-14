@@ -571,6 +571,21 @@ async def entrypoint(ctx: agents.JobContext) -> None:
 
     logger.info("✅ Session started — ready to dial")
 
+    if not phone_number:
+        # Inbound call — no dial/answer sequence, so trigger the greeting now.
+        await asyncio.sleep(0.3)
+        try:
+            from google.genai import types as _gt
+            realtime_model = session._llm
+            for rs in list(realtime_model._sessions):
+                rs._send_client_event(
+                    _gt.LiveClientRealtimeInput(text="hello")
+                )
+                logger.info("✅ Sent hello text to trigger inbound greeting")
+                break
+        except Exception as e:
+            logger.warning("Inbound hello trigger failed: %s", e)
+
     # ── Dial out ──────────────────────────────────────────────────────────────
     if phone_number:
         user_present = any(
