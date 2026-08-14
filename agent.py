@@ -495,7 +495,7 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             logger.warning("⚠️  DEBUG no remote participants found after waiting")
 
         # Inbound calls always use this fixed agent profile, regardless of org.
-        agent_profile_id = "3f16e4c1-bce5-4640-a41c-20438e2637de"
+        agent_profile_id = "10dc7af3-d3f6-4ff1-80b5-c47263cdb367"
         logger.info("📇 Inbound call — forcing agent_profile_id=%s", agent_profile_id)
 
     if not org_id:
