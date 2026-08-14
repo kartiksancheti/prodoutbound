@@ -21,7 +21,7 @@ from livekit import agents, api
 from livekit.agents import Agent, AgentSession, RoomInputOptions
 from livekit.plugins import noise_cancellation, silero
 
-from db import init_db, log_error, get_enabled_tools, get_agent_profile
+from db import get_organization_by_phone_number, init_db, log_error, get_enabled_tools, get_agent_profile
 from prompts import build_prompt
 from tools import AppointmentTools
 
@@ -460,8 +460,48 @@ async def entrypoint(ctx: agents.JobContext) -> None:
             pass
 
     if not org_id:
+        # No dispatch metadata — likely an inbound SIP call. Connect first so we
+        # can inspect the SIP participant's attributes and resolve org_id from
+        # the number that was actually dialed.
+        await ctx.connect()
+        logger.info("✅ Connected to room: %s", ctx.room.name)
+
+        # SIP participant may join a beat after room connect — poll briefly.
+        for attempt in range(10):
+            if ctx.room.remote_participants:
+                break
+            await asyncio.sleep(0.3)
+            logger.info("🔍 DEBUG waiting for participant... attempt=%d", attempt + 1)
+
+        for p in ctx.room.remote_participants.values():
+            attrs = getattr(p, "attributes", {}) or {}
+            logger.info("🔍 DEBUG inbound participant identity=%s attrs=%s", p.identity, attrs)
+
+            dialed_number = attrs.get("sip.trunkPhoneNumber")
+            if dialed_number and not org_id:
+                try:
+                    org = await get_organization_by_phone_number(dialed_number)
+                    if org:
+                        org_id = org["id"]
+                        outbound_number = outbound_number or org.get("outbound_number")
+                        transfer_number = transfer_number or org.get("transfer_number")
+                        logger.info("✅ Resolved org_id=%s from dialed number %s", org_id, dialed_number)
+                    else:
+                        logger.warning("⚠️  No organization found for dialed number %s", dialed_number)
+                except Exception as exc:
+                    logger.error("❌ org lookup by phone failed: %s", exc)
+
+        if not ctx.room.remote_participants:
+            logger.warning("⚠️  DEBUG no remote participants found after waiting")
+
+        # Inbound calls always use this fixed agent profile, regardless of org.
+        agent_profile_id = "3f16e4c1-bce5-4640-a41c-20438e2637de"
+        logger.info("📇 Inbound call — forcing agent_profile_id=%s", agent_profile_id)
+
+    if not org_id:
         logger.error("❌ Job metadata has no org_id — refusing to run.")
         await _log("error", "Job dispatched without org_id", f"room={ctx.room.name}")
+        ctx.shutdown(reason="missing org_id")
         return
 
     logger.info("📞 Incoming job | org=%s phone=%s lead=%s business=%s service=%s",
@@ -488,8 +528,9 @@ async def entrypoint(ctx: agents.JobContext) -> None:
     enabled_tools = profile_tools or await get_enabled_tools()
 
     # ── Connect to room ───────────────────────────────────────────────────────
-    await ctx.connect()
-    logger.info("✅ Connected to room: %s", ctx.room.name)
+    if not ctx.room.isconnected():
+        await ctx.connect()
+        logger.info("✅ Connected to room: %s", ctx.room.name)
 
     tool_ctx = AppointmentTools(ctx, org_id, phone_number, lead_name, transfer_number=transfer_number)
 

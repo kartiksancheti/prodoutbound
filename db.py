@@ -155,6 +155,25 @@ async def get_organization_by_slug(slug: str) -> Optional[dict]:
     result = await db.table("organizations").select("*").eq("slug", slug).maybe_single().execute()
     return result.data if result else None
 
+async def get_organization_by_phone_number(phone_number: str) -> Optional[dict]:
+    """Match an inbound-dialed number (E.164, e.g. +918071582020) against
+    organizations.outbound_number. Tries exact match first, then a
+    digits-only match to tolerate formatting differences."""
+    db = await _adb()
+    result = await db.table("organizations").select("*").eq(
+        "outbound_number", phone_number
+    ).maybe_single().execute()
+    if result and result.data:
+        return result.data
+
+    digits = "".join(c for c in phone_number if c.isdigit())
+    all_orgs = await db.table("organizations").select("*").execute()
+    for org in (all_orgs.data or []):
+        on = org.get("outbound_number") or ""
+        if "".join(c for c in on if c.isdigit()).endswith(digits[-10:]):
+            return org
+    return None
+
 
 async def list_organizations() -> list:
     db = await _adb()
