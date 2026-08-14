@@ -85,9 +85,32 @@ class AppointmentTools(llm.ToolContext):
         """
         try:
             booking_id = await insert_appointment(self.org_id, name, phone, date, time, service)
-            return f"Confirmed! Booking ID: {booking_id}. See you on {date} at {time} for {service}."
         except Exception:
             return "Technical issue saving the booking. Our team will confirm shortly."
+
+        # Notify the team via n8n -> Telegram webhook (advance-payment follow-up flow)
+        try:
+            import httpx
+            from db import get_organization
+            org = await get_organization(self.org_id)
+            org_name = org.get("name") if org else self.org_id
+            webhook_url = os.getenv("N8N_BOOKING_WEBHOOK_URL", "")
+            if webhook_url:
+                async with httpx.AsyncClient(timeout=10) as client:
+                    await client.post(webhook_url, json={
+                        "booking_id": booking_id,
+                        "org_id": self.org_id,
+                        "org_name": org_name,
+                        "name": name,
+                        "phone": phone,
+                        "date": date,
+                        "time": time,
+                        "service": service,
+                    })
+        except Exception as exc:
+            logger.warning("n8n booking webhook failed: %s", exc)
+
+        return f"Confirmed! Booking ID: {booking_id}. See you on {date} at {time} for {service}."
 
     @llm.function_tool
     async def end_call(self, outcome: str, reason: str = "") -> str:
@@ -106,6 +129,35 @@ class AppointmentTools(llm.ToolContext):
             )
         except Exception as exc:
             logger.error("Failed to log call: %s", exc)
+
+        # Notify the team via n8n -> Telegram webhook when a booking is made
+        # (used by flows like Aditi's, which capture details via remember_details
+        # instead of calling book_appointment directly).
+        if outcome == "booked":
+            try:
+                import httpx
+                from db import get_organization, get_contact_memory
+                org = await get_organization(self.org_id)
+                org_name = org.get("name") if org else self.org_id
+                details = reason
+                if self.phone_number:
+                    memories = await get_contact_memory(self.org_id, self.phone_number)
+                    if memories:
+                        details = memories[0].get("insight", reason)
+                webhook_url = os.getenv("N8N_BOOKING_WEBHOOK_URL", "")
+                if webhook_url:
+                    async with httpx.AsyncClient(timeout=10) as client:
+                        await client.post(webhook_url, json={
+                            "org_id": self.org_id,
+                            "org_name": org_name,
+                            "name": self.lead_name,
+                            "phone": self.phone_number or "unknown",
+                            "details": details,
+                            "reason": reason,
+                        })
+            except Exception as exc:
+                logger.warning("n8n booking webhook failed (end_call): %s", exc)
+
         # Wait for Priya to finish speaking before disconnecting
         await asyncio.sleep(3)
         # Force-remove SIP participant to actually terminate the call on Vobiz side
@@ -113,7 +165,6 @@ class AppointmentTools(llm.ToolContext):
             import aiohttp
             from livekit.api.room_service import RoomService
             from livekit.api.room_service import RoomParticipantIdentity
-            import os
             lk_url = os.getenv("LIVEKIT_URL", "").replace("wss://", "https://").replace("ws://", "http://")
             lk_key = os.getenv("LIVEKIT_API_KEY", "")
             lk_secret = os.getenv("LIVEKIT_API_SECRET", "")
