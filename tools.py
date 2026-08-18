@@ -130,34 +130,6 @@ class AppointmentTools(llm.ToolContext):
         except Exception as exc:
             logger.error("Failed to log call: %s", exc)
 
-        # Notify the team via n8n -> Telegram webhook when a booking is made
-        # (used by flows like Aditi's, which capture details via remember_details
-        # instead of calling book_appointment directly).
-        if outcome == "booked":
-            try:
-                import httpx
-                from db import get_organization, get_contact_memory
-                org = await get_organization(self.org_id)
-                org_name = org.get("name") if org else self.org_id
-                details = reason
-                if self.phone_number:
-                    memories = await get_contact_memory(self.org_id, self.phone_number)
-                    if memories:
-                        details = memories[0].get("insight", reason)
-                webhook_url = os.getenv("N8N_BOOKING_WEBHOOK_URL", "")
-                if webhook_url:
-                    async with httpx.AsyncClient(timeout=10) as client:
-                        await client.post(webhook_url, json={
-                            "org_id": self.org_id,
-                            "org_name": org_name,
-                            "name": self.lead_name,
-                            "phone": self.phone_number or "unknown",
-                            "details": details,
-                            "reason": reason,
-                        })
-            except Exception as exc:
-                logger.warning("n8n booking webhook failed (end_call): %s", exc)
-
         # Wait for Priya to finish speaking before disconnecting
         await asyncio.sleep(3)
         # Force-remove SIP participant to actually terminate the call on Vobiz side
@@ -272,6 +244,53 @@ class AppointmentTools(llm.ToolContext):
             return "\n".join(lines)
         except Exception:
             return "Unable to retrieve contact history."
+
+    @llm.function_tool
+    async def send_telegram_notification(self, details: str) -> str:
+        """
+        Notify the team via Telegram that a booking has been confirmed on this call.
+        Call this immediately after remember_details, once package, date, time, and
+        booking name are all agreed.
+        details: full booking summary (package, date, time, booking name, phone if known)
+        """
+        try:
+            import httpx
+            from db import get_organization
+            org = await get_organization(self.org_id)
+            org_name = org.get("name") if org else self.org_id
+            webhook_url = os.getenv("N8N_BOOKING_WEBHOOK_URL", "")
+            if not webhook_url:
+                return "Notification skipped — no webhook configured."
+            async with httpx.AsyncClient(timeout=10) as client:
+                await client.post(webhook_url, json={
+                    "org_id": self.org_id,
+                    "org_name": org_name,
+                    "name": self.lead_name,
+                    "phone": self.phone_number or "unknown",
+                    "details": details,
+                    "reason": details,
+                })
+            return "Team notified."
+        except Exception as exc:
+            logger.warning("n8n booking webhook failed (send_telegram_notification): %s", exc)
+            return "Notification failed, but continue the call normally."
+
+    @llm.function_tool
+    async def save_feedback_score(self, score: int, name: str = "") -> str:
+        """
+        Save the caller's 1-10 feedback rating on their last service.
+        Call this right after they give a rating, before end_call.
+        score: integer 1-10 | name: caller's name if known
+        """
+        if not self.phone_number:
+            return "Cannot save feedback — no phone number for this call."
+        try:
+            insight = f"Feedback score: {score}/10" + (f" (name: {name})" if name else "")
+            await add_contact_memory(self.org_id, self.phone_number, insight)
+            return f"Feedback saved: {score}/10"
+        except Exception as exc:
+            logger.warning("Failed to save feedback score: %s", exc)
+            return "Could not save feedback score."
 
     @llm.function_tool
     async def remember_details(self, insight: str) -> str:
