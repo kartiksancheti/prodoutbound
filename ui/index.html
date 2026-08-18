@@ -967,7 +967,7 @@ async function loadProfiles() {
         <td style="font-size:11px">${tools.length ? tools.join(', ') : 'All'}</td>
         <td>${p.is_default ? '<span class="badge badge-green">Default</span>' : '<button class="btn btn-ghost btn-sm" onclick="setDefault(\''+p.id+'\')">Set Default</button>'}</td>
         <td>
-          <button class="btn btn-ghost btn-sm" onclick="editProfile(${JSON.stringify(JSON.stringify(p))})">Edit</button>
+          <button class="btn btn-ghost btn-sm" data-profile="${esc(JSON.stringify(p))}" onclick="editProfile(this.getAttribute('data-profile'))">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="deleteProfile('${p.id}')">Delete</button>
         </td>
       </tr>`;
